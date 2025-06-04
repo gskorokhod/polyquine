@@ -23,6 +23,10 @@ assert_eq!(
 );
 ```
 
+# Acknowledgements
+
+Some code was shamelessly stolen from the [parsel](https://github.com/H2CO3/parsel/blob/master/parsel_derive/src/to_tokens.rs) crate, which is cool and you should check it out maybe.
+
 # Why?
 
 This is intended for cases where you need to construct a value and do some non-trivial logic on it at compile time (probably in a procedural macro), then take the result out of the macro as valid Rust code.
