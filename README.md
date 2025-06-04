@@ -1,4 +1,4 @@
-polyquine: Teach Rust types to codegen their own constructor!
+Polyquine: Teach Rust types to codegen their own constructor!
 
 # Purpose
 
@@ -49,6 +49,8 @@ no.
 A quine is a program that outputs its own source code.
 This crate teaches an arbitrary enum / struct to generate a Rust program that constructs it, thereby making it a quine.
 This is only slightly pretentious.
+
+---
 
 
 
