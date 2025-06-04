@@ -1,16 +1,15 @@
 mod enums;
+mod fields;
 mod structs;
 mod util;
 
 use crate::util::add_bounds;
 use enums::expand_enum;
-use proc_macro2::{Delimiter, Group, Punct, Spacing, TokenStream};
-use quote::{TokenStreamExt, format_ident, quote};
+use proc_macro2::TokenStream;
+use quote::quote;
 use structs::expand_struct;
-use syn::Ident;
-use syn::{Data, DataEnum, DataStruct, DeriveInput, Error, Fields, Result};
-use syn::{FieldsNamed, FieldsUnnamed, Type, parse_quote};
-use util::{TypeWrapper, type_wrapper};
+use syn::parse_quote;
+use syn::{Data, DeriveInput, Error, Result};
 
 #[proc_macro_derive(ToTokens, attributes(polyquine))]
 pub fn derive_to_tokens(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
