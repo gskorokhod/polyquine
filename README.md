@@ -26,7 +26,10 @@ assert_eq!(
 # Why?
 
 This is intended for cases where you need to construct a value and do some non-trivial logic on it at compile time (probably in a procedural macro), then take the result out of the macro as valid Rust code.
+
 For example, when you are parsing a DSL at compile time and outputting the constructed (and possibly simplified / transformed) AST as the result of your macro call.
+
+See [this PR](https://github.com/conjure-cp/conjure-oxide/pull/710) as proof that this use case is not completely made up.
 
 # Features 
 
