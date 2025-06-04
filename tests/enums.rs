@@ -10,6 +10,7 @@ enum TestEnum {
     Recursive(#[polyquine(recursive)] Box<TestEnum>),
     Option(Option<i32>),
     RecursiveVecOption(#[polyquine(recursive)] Vec<Option<TestEnum>>),
+    BasicNamed { id: i32, name: String },
 }
 
 #[test]
@@ -112,4 +113,20 @@ fn test_enum_recursive_vec_option() {
     assert_eq!(tokens.to_string(), quote! {
         TestEnum::RecursiveVecOption(vec![Some(TestEnum::Basic(200i32.into(), "Inner".into()).into()), None])
     }.to_string());
+}
+
+#[test]
+fn test_enum_basic_named() {
+    let test_enum = TestEnum::BasicNamed {
+        id: 1,
+        name: "Test".to_string(),
+    };
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::BasicNamed { id: 1i32.into(), name: "Test".into() }
+        }
+        .to_string()
+    );
 }

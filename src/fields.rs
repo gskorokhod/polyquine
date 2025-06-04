@@ -118,7 +118,7 @@ pub fn type_wrapper(ty: &Type) -> Option<TypeWrapper> {
 /// top:
 /// ```none
 /// let value_option = match value {
-///     Some(val) => ::quote::quote! { Some(Box::new(val)) },
+///     Some(val) => ::quote::quote! { Some(Box::new(#val)) },
 ///     None => ::quote::quote! { None },
 ///  };
 /// ```

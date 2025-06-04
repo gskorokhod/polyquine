@@ -38,32 +38,53 @@ fn expand_variant(prefix: &impl ToTokens, variant: &Variant) -> Result<TokenStre
                 }
             })
         }
-        Fields::Unnamed(fields) => {
-            // For tuple variants, generate bindings for each field.
-            // E.g: Enum::Tuple(a, b) -> quote! { Enum::Tuple(#a, #b) }
-
+        Fields::Named(_) | Fields::Unnamed(_) => {
             let mut bindings: Vec<TokenStream> = vec![]; // Field bindings (e.g. `match Enum::Tuple(a, b)`)
             let mut expansions: Vec<TokenStream> = vec![]; // Expanded field expressions (e.g. `#a`, `#b`)
             let mut top_exprs: Vec<TokenStream> = vec![]; // Top-level expressions for each field (e.g. `let a = &self.a;`)
 
-            for (i, field) in fields.unnamed.iter().enumerate() {
-                let field_ident = Ident::new(&format!("field_{}", i), field.span());
-                let (exp, top) = expand_field(&field.ty, &field_ident);
-                bindings.push(field_ident.to_token_stream());
-                expansions.push(exp);
-                top_exprs.push(top);
-            }
-            Ok(quote! {
-                #prefix::#variant_name ( #( #bindings ),* ) => {
-                    #(#top_exprs)*
-                    tokens.extend(::quote::quote! { #prefix::#variant_name ( #(#expansions),* ) });
+            match &variant.fields {
+                Fields::Unnamed(fields) => {
+                    // For tuple variants, generate bindings for each field.
+                    // E.g: Enum::Tuple(a, b) -> quote! { Enum::Tuple(#a, #b) }
+                    for (i, field) in fields.unnamed.iter().enumerate() {
+                        let field_ident = Ident::new(&format!("field_{}", i), field.span());
+                        let (exp, top) = expand_field(&field.ty, &field_ident);
+                        bindings.push(field_ident.to_token_stream());
+                        expansions.push(exp);
+                        top_exprs.push(top);
+                    }
+                    Ok(quote! {
+                        #prefix::#variant_name ( #( #bindings ),* ) => {
+                            #(#top_exprs)*
+                            tokens.extend(::quote::quote! { #prefix::#variant_name ( #(#expansions),* ) });
+                        }
+                    })
                 }
-            })
-        }
-        Fields::Named(fields) => {
-            // For named variants, generate bindings for each field using their names.
-            // E.g: Enum::Named { a, b } -> quote! { Enum::Named { a: #a, b: #b } }
-            todo!("Handle named fields in enums");
+                Fields::Named(fields) => {
+                    // For named variants, generate bindings for each field using their names.
+                    // E.g: Enum::Named { a, b } -> quote! { Enum::Named { a: #a, b: #b } }
+                    for field in &fields.named {
+                        let field_ident = field
+                            .ident
+                            .as_ref()
+                            .expect("named variant must have field names");
+                        let (exp, top) = expand_field(&field.ty, field_ident);
+                        bindings.push(field_ident.to_token_stream());
+                        expansions.push(exp);
+                        top_exprs.push(top);
+                    }
+                    Ok(quote! {
+                        #prefix::#variant_name { #( #bindings ),* } => {
+                            #(#top_exprs)*
+                            tokens.extend(::quote::quote! { #prefix::#variant_name {
+                                #( #bindings: #expansions ),*
+                            } });
+                        }
+                    })
+                }
+                _ => unreachable!(),
+            }
         }
     }
 }
