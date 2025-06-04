@@ -4,7 +4,7 @@ use proc_macro2::{Ident, Punct, Spacing, TokenStream};
 use quote::{TokenStreamExt, format_ident, quote};
 use std::default::Default;
 use syn::{
-    AngleBracketedGenericArguments, Field, Fields, GenericArgument, Path, PathArguments,
+    AngleBracketedGenericArguments, Field, Fields, GenericArgument, Index, Path, PathArguments,
     PathSegment, Type,
 };
 
@@ -193,7 +193,30 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
             (exp, top)
         }
         Some(TypeWrapper::Tuple(inner)) => {
-            todo!("Handle tuple types in enum variants");
+            let mut top = TokenStream::new();
+            let mut expansions = Vec::<TokenStream>::new();
+            // First, assign idents to each field in the tuple.
+            for i in 0..inner.len() {
+                let field_ident = format_ident!("{}_tuple_{}", ident, i);
+                let idx = Index::from(i);
+                top.extend(quote! {
+                    let #field_ident = &#ident.#idx;
+                });
+            }
+            // Next, generate expansions for each field in the tuple.
+            for (i, ty) in inner.iter().enumerate() {
+                let field_ident = format_ident!("{}_tuple_{}", ident, i);
+                let (exp, top_expr) = expand_field(ty, &field_ident);
+                top.extend(top_expr.clone());
+                expansions.push(exp);
+            }
+            // Finally, create the top-level expression that combines all expansions.
+            println!("Final Top: {}", top);
+            let exp = quote! {
+                (#(#expansions),*)
+            };
+            println!("Expansion: {}", exp);
+            (exp, top)
         }
         _ => {
             // For other types, push `#a` (where `a` is the field identifier).

@@ -22,6 +22,8 @@ enum TestEnum {
     },
     IntVecDeque(VecDeque<i32>),
     IntSet(std::collections::HashSet<i32>),
+    BasicTuple(i32, (String, f64)),
+    NestedTuple(i32, (String, (Vec<i32>, bool))),
 }
 
 #[test]
@@ -184,6 +186,32 @@ fn test_enum_int_set() {
         tokens.to_string(),
         quote! {
             TestEnum::IntSet(std::collections::HashSet::<i32>::from([1i32.into()]))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_basic_tuple() {
+    let test_enum = TestEnum::BasicTuple(42, ("Hello".to_string(), 3.14));
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::BasicTuple(42i32.into(), ("Hello".into(), 3.14f64.into()))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_nested_tuple() {
+    let test_enum = TestEnum::NestedTuple(42, ("World".to_string(), (vec![1, 2], true)));
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::NestedTuple(42i32.into(), ("World".into(), (vec![1i32.into(), 2i32.into()], true.into())))
         }
         .to_string()
     );
