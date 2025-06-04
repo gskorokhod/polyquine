@@ -1,5 +1,6 @@
 use polyquine::ToTokens;
 use quote::{ToTokens, quote};
+use std::collections::VecDeque;
 
 #[derive(ToTokens)]
 enum TestEnum {
@@ -10,7 +11,16 @@ enum TestEnum {
     Recursive(#[polyquine(recursive)] Box<TestEnum>),
     Option(Option<i32>),
     RecursiveVecOption(#[polyquine(recursive)] Vec<Option<TestEnum>>),
-    BasicNamed { id: i32, name: String },
+    BasicNamed {
+        id: i32,
+        name: String,
+    },
+    RecursiveNamed {
+        name: Vec<String>,
+        #[polyquine(recursive)]
+        inner: Box<TestEnum>,
+    },
+    IntVecDeque(VecDeque<i32>),
 }
 
 #[test]
@@ -126,6 +136,39 @@ fn test_enum_basic_named() {
         tokens.to_string(),
         quote! {
             TestEnum::BasicNamed { id: 1i32.into(), name: "Test".into() }
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_recursive_named() {
+    let inner_enum = TestEnum::Basic(300, "Inner Named".to_string());
+    let test_enum = TestEnum::RecursiveNamed {
+        name: vec!["Outer".to_string(), "Named".to_string()],
+        inner: Box::new(inner_enum),
+    };
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::RecursiveNamed {
+                name: vec!["Outer".into(), "Named".into()],
+                inner: Box::new(TestEnum::Basic(300i32.into(), "Inner Named".into()).into())
+            }
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_int_vec_deque() {
+    let test_enum = TestEnum::IntVecDeque(VecDeque::<i32>::from(vec![1, 2, 3]));
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::IntVecDeque(VecDeque::<i32>::from(vec![1i32.into(), 2i32.into(), 3i32.into()]))
         }
         .to_string()
     );

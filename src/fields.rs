@@ -1,16 +1,24 @@
 use crate::util::{Attrs, expand_sequence};
 use itertools::Itertools;
 use proc_macro2::{Ident, Punct, Spacing, TokenStream};
-use quote::{TokenStreamExt, format_ident, quote};
-use syn::{Field, Fields, GenericArgument, PathArguments, Type};
+use quote::{ToTokens, TokenStreamExt, format_ident, quote};
+use std::collections::VecDeque;
+use std::default::Default;
+use syn::{
+    AngleBracketedGenericArguments, Field, Fields, GenericArgument, Path, PathArguments,
+    PathSegment, Token, Type,
+};
 
 /// Types that don't implement `ToTokens` in the way that we need, so require special handling.
 pub enum TypeWrapper {
     Box(Type),
-    Vec(Type),
     Option(Type),
+    Iterable(Type, Path),
+    OtherPath(Path),
     Tuple(Vec<Type>),
 }
+
+static SUPPORTED_ITERABLES: &[&str] = &["Vec", "HashSet", "VecDeque", "BTreeSet"];
 
 /// Get the types of all fields in a struct or enum variant.
 pub fn field_types(flds: Fields) -> Vec<Type> {
@@ -39,10 +47,11 @@ pub fn leaf_types(mut field: Field) -> Vec<Type> {
 pub fn leaf_types_impl(ty: &Type) -> Vec<Type> {
     match type_wrapper(ty) {
         Some(fw) => match &fw {
-            TypeWrapper::Box(inner) | TypeWrapper::Vec(inner) | TypeWrapper::Option(inner) => {
-                leaf_types_impl(inner)
-            }
+            TypeWrapper::Box(inner)
+            | TypeWrapper::Option(inner)
+            | TypeWrapper::Iterable(inner, _) => leaf_types_impl(inner),
             TypeWrapper::Tuple(inner) => inner.iter().flat_map(leaf_types_impl).collect(),
+            TypeWrapper::OtherPath(_) => vec![ty.clone()],
         },
         None => vec![ty.clone()],
     }
@@ -54,7 +63,9 @@ pub fn type_wrapper(ty: &Type) -> Option<TypeWrapper> {
     // println!("AST: {:#?}", ty);
     match ty {
         Type::Path(path) => {
-            let last = path.path.segments.last().unwrap();
+            let mut path = path.clone();
+            let segments = &mut path.path.segments;
+            let mut last = segments.last_mut().unwrap().clone();
             let ident = last.ident.to_string();
             let inners = match last.arguments {
                 PathArguments::AngleBracketed(ref args) => args
@@ -73,21 +84,28 @@ pub fn type_wrapper(ty: &Type) -> Option<TypeWrapper> {
                     vec![]
                 }
             };
+            let new_last = PathSegment {
+                ident: last.ident.clone(),
+                arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+                    colon2_token: Some(Default::default()),
+                    lt_token: Default::default(),
+                    args: inners
+                        .iter()
+                        .map(|a| GenericArgument::Type(a.clone()))
+                        .collect(),
+                    gt_token: Default::default(),
+                }),
+            };
+            segments.pop();
+            segments.push(new_last);
             match ident.as_str() {
-                "Option" | "Box" | "Vec" => {
-                    if inners.len() != 1 {
-                        // println!("Invalid type arguments for: {:#?}", ty);
-                        // println!("Expected 1, got: {:#?}", inners);
-                        panic!("Expected 1, got: {:#?}", inners);
-                    }
-                    match ident.as_str() {
-                        "Option" => Some(TypeWrapper::Option(inners[0].clone())),
-                        "Box" => Some(TypeWrapper::Box(inners[0].clone())),
-                        "Vec" => Some(TypeWrapper::Vec(inners[0].clone())),
-                        _ => unreachable!(),
-                    }
+                "Option" => Some(TypeWrapper::Option(inners[0].clone())),
+                "Box" => Some(TypeWrapper::Box(inners[0].clone())),
+                _itr if SUPPORTED_ITERABLES.contains(&ident.as_str()) => {
+                    // Handle types like `Vec`, `HashSet`, `VecDeque`, etc.
+                    Some(TypeWrapper::Iterable(inners[0].clone(), path.path.clone()))
                 }
-                _ => None,
+                _ => Some(TypeWrapper::OtherPath(path.path.clone())),
             }
         }
         Type::Tuple(inner) => {
@@ -126,7 +144,6 @@ pub fn type_wrapper(ty: &Type) -> Option<TypeWrapper> {
 /// ```none
 /// ::quote::quote! { #value_option.into() }
 /// ```
-///
 pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
     match type_wrapper(ty) {
         Some(TypeWrapper::Box(inner)) => {
@@ -136,10 +153,10 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
             };
             (exp, inner_top)
         }
-        Some(TypeWrapper::Vec(inner)) => {
-            // Expand the inner type and save its generated `quote!` expression.
-            let inner_exp_ident = format_ident!("{}_vec", ident);
-            let inner_item_ident = format_ident!("{}_vec_item", ident);
+        Some(TypeWrapper::Iterable(inner, path)) => {
+            // Handle types like `HashSet`, `VecDeque`, etc.
+            let inner_exp_ident = format_ident!("{}_vec_like", ident);
+            let inner_item_ident = format_ident!("{}_vec_like_item", ident);
             let (inner_exp, inner_top) = expand_field(&inner, &inner_item_ident);
             let top = quote! {
                 let #inner_exp_ident = #ident.iter().map(|#inner_item_ident: &#inner| {
@@ -147,10 +164,14 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
                     ::quote::quote! { #inner_exp }
                 }).collect::<Vec<_>>();
             };
-            // Now, generate the `vec!` containing the expanded items.
+            // Now, generate the `#path` containing the expanded items.
             let seq_exp = expand_sequence(&inner_exp_ident);
-            let exp = quote! {
-                vec![ #seq_exp ]
+            let exp = if (path.segments.last().unwrap().ident.to_string() == "Vec") {
+                quote! { vec![#seq_exp] }
+            } else {
+                quote! {
+                    #path::from(vec![#seq_exp])
+                }
             };
             (exp, top)
         }
@@ -175,7 +196,7 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
         Some(TypeWrapper::Tuple(inner)) => {
             todo!("Handle tuple types in enum variants");
         }
-        None => {
+        _ => {
             // For other types, push `#a` (where `a` is the field identifier).
             // I.e. bind the field directly and use its own ToTokens implementation.
             let mut ts = TokenStream::new();
