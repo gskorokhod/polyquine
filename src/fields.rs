@@ -169,7 +169,7 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
                 quote! { vec![#seq_exp] }
             } else {
                 quote! {
-                    #path::from(vec![#seq_exp])
+                    #path::from([#seq_exp])
                 }
             };
             (exp, top)

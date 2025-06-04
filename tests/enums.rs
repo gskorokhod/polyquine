@@ -21,6 +21,7 @@ enum TestEnum {
         inner: Box<TestEnum>,
     },
     IntVecDeque(VecDeque<i32>),
+    IntSet(std::collections::HashSet<i32>),
 }
 
 #[test]
@@ -163,12 +164,26 @@ fn test_enum_recursive_named() {
 
 #[test]
 fn test_enum_int_vec_deque() {
-    let test_enum = TestEnum::IntVecDeque(VecDeque::<i32>::from(vec![1, 2, 3]));
+    let test_enum = TestEnum::IntVecDeque(VecDeque::<i32>::from([1, 2, 3]));
     let tokens = test_enum.to_token_stream();
     assert_eq!(
         tokens.to_string(),
         quote! {
-            TestEnum::IntVecDeque(VecDeque::<i32>::from(vec![1i32.into(), 2i32.into(), 3i32.into()]))
+            TestEnum::IntVecDeque(VecDeque::<i32>::from([1i32.into(), 2i32.into(), 3i32.into()]))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_int_set() {
+    let set = std::collections::HashSet::<i32>::from([1]);
+    let test_enum = TestEnum::IntSet(set);
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::IntSet(std::collections::HashSet::<i32>::from([1i32.into()]))
         }
         .to_string()
     );
