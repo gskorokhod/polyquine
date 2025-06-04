@@ -1,12 +1,11 @@
 use crate::util::{Attrs, expand_sequence};
 use itertools::Itertools;
 use proc_macro2::{Ident, Punct, Spacing, TokenStream};
-use quote::{ToTokens, TokenStreamExt, format_ident, quote};
-use std::collections::VecDeque;
+use quote::{TokenStreamExt, format_ident, quote};
 use std::default::Default;
 use syn::{
     AngleBracketedGenericArguments, Field, Fields, GenericArgument, Path, PathArguments,
-    PathSegment, Token, Type,
+    PathSegment, Type,
 };
 
 /// Types that don't implement `ToTokens` in the way that we need, so require special handling.
@@ -65,7 +64,7 @@ pub fn type_wrapper(ty: &Type) -> Option<TypeWrapper> {
         Type::Path(path) => {
             let mut path = path.clone();
             let segments = &mut path.path.segments;
-            let mut last = segments.last_mut().unwrap().clone();
+            let last = segments.last_mut().unwrap().clone();
             let ident = last.ident.to_string();
             let inners = match last.arguments {
                 PathArguments::AngleBracketed(ref args) => args
@@ -166,7 +165,7 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
             };
             // Now, generate the `#path` containing the expanded items.
             let seq_exp = expand_sequence(&inner_exp_ident);
-            let exp = if (path.segments.last().unwrap().ident.to_string() == "Vec") {
+            let exp = if path.segments.last().unwrap().ident.to_string() == "Vec" {
                 quote! { vec![#seq_exp] }
             } else {
                 quote! {
