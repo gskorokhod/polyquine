@@ -24,6 +24,11 @@ enum TestEnum {
     IntSet(std::collections::HashSet<i32>),
     BasicTuple(i32, (String, f64)),
     NestedTuple(i32, (String, (Vec<i32>, bool))),
+    BasicHashMap(std::collections::HashMap<String, i32>),
+    BasicArc(std::sync::Arc<i32>),
+    BasicCell(std::cell::Cell<i32>),
+    BasicRefCell(std::cell::RefCell<i32>),
+    BasicRc(std::rc::Rc<i32>),
 }
 
 #[test]
@@ -212,6 +217,78 @@ fn test_enum_nested_tuple() {
         tokens.to_string(),
         quote! {
             TestEnum::NestedTuple(42i32.into(), ("World".into(), (vec![1i32.into(), 2i32.into()], true.into())))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_hash_map() {
+    let map = std::collections::HashMap::<String, i32>::from([("key1".to_string(), 10)]);
+    let test_enum = TestEnum::BasicHashMap(map);
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::BasicHashMap(std::collections::HashMap::<String, i32>::from([
+                ("key1".into(), 10i32.into())
+            ]))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_basic_arc() {
+    let value = std::sync::Arc::new(42);
+    let test_enum = TestEnum::BasicArc(value);
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::BasicArc(std::sync::Arc::<i32>::new(42i32.into()))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_basic_cell() {
+    let cell = std::cell::Cell::new(42);
+    let test_enum = TestEnum::BasicCell(cell);
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::BasicCell(std::cell::Cell::<i32>::new(42i32.into()))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_basic_ref_cell() {
+    let ref_cell = std::cell::RefCell::new(42);
+    let test_enum = TestEnum::BasicRefCell(ref_cell);
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::BasicRefCell(std::cell::RefCell::<i32>::new(42i32.into()))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_basic_rc() {
+    let rc = std::rc::Rc::new(42);
+    let test_enum = TestEnum::BasicRc(rc);
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::BasicRc(std::rc::Rc::<i32>::new(42i32.into()))
         }
         .to_string()
     );

@@ -1,7 +1,7 @@
 use crate::util::{Attrs, expand_sequence};
 use itertools::Itertools;
 use proc_macro2::{Ident, Punct, Spacing, TokenStream};
-use quote::{TokenStreamExt, format_ident, quote};
+use quote::{ToTokens, TokenStreamExt, format_ident, quote};
 use std::default::Default;
 use syn::{
     AngleBracketedGenericArguments, Field, Fields, GenericArgument, Index, Path, PathArguments,
@@ -12,12 +12,20 @@ use syn::{
 pub enum TypeWrapper {
     Box(Type),
     Option(Type),
-    Iterable(Type, Path),
-    OtherPath(Path),
+    Iterable(Type, Path),           // e.g. Vec<T>, HashSet<T>, VecDeque<T>, ...
+    MapLike(Type, Type, Path),      // e.g. HashMap<K, V>
+    ArcLike(Type, Path),            // e.g. Arc<T>, Rc<T>
+    CellLike(Type, Path),           // e.g. Cell<T>, RefCell<T>
+    OtherPathZero(Path),            // e.g. Path with no generics, like `std::string::String`
+    OtherPathOne(Type, Path),       // e.g. Path with one generic, like `SomeTrait<T>`
+    OtherPathMany(Vec<Type>, Path), // e.g. Path with multiple generics, like `SomeTrait<T, U, V>`
     Tuple(Vec<Type>),
 }
 
 static SUPPORTED_ITERABLES: &[&str] = &["Vec", "HashSet", "VecDeque", "BTreeSet"];
+static SUPPORTED_MAPLIKES: &[&str] = &["HashMap", "BTreeMap"];
+static SUPPORTED_CELLLIKE: &[&str] = &["Cell", "RefCell"];
+static SUPPORTED_ARCLIKE: &[&str] = &["Arc", "Rc"];
 
 /// Get the types of all fields in a struct or enum variant.
 pub fn field_types(flds: Fields) -> Vec<Type> {
@@ -49,8 +57,20 @@ pub fn leaf_types_impl(ty: &Type) -> Vec<Type> {
             TypeWrapper::Box(inner)
             | TypeWrapper::Option(inner)
             | TypeWrapper::Iterable(inner, _) => leaf_types_impl(inner),
+            TypeWrapper::MapLike(k, v, _) => {
+                // For map-like types, we return both key and value types.
+                let mut ans = leaf_types_impl(k);
+                ans.extend(leaf_types_impl(v));
+                ans
+            }
             TypeWrapper::Tuple(inner) => inner.iter().flat_map(leaf_types_impl).collect(),
-            TypeWrapper::OtherPath(_) => vec![ty.clone()],
+            TypeWrapper::CellLike(inner, _) => leaf_types_impl(inner),
+            TypeWrapper::ArcLike(inner, _) => leaf_types_impl(inner),
+            TypeWrapper::OtherPathZero(_) => vec![ty.clone()],
+            TypeWrapper::OtherPathOne(inner, _) => vec![inner.clone()],
+            TypeWrapper::OtherPathMany(inners, _) => {
+                inners.iter().flat_map(leaf_types_impl).collect()
+            }
         },
         None => vec![ty.clone()],
     }
@@ -104,7 +124,45 @@ pub fn type_wrapper(ty: &Type) -> Option<TypeWrapper> {
                     // Handle types like `Vec`, `HashSet`, `VecDeque`, etc.
                     Some(TypeWrapper::Iterable(inners[0].clone(), path.path.clone()))
                 }
-                _ => Some(TypeWrapper::OtherPath(path.path.clone())),
+                _map if SUPPORTED_MAPLIKES.contains(&ident.as_str()) => {
+                    // Handle types like `HashMap`, `BTreeMap`, etc.
+                    if inners.len() == 2 {
+                        Some(TypeWrapper::MapLike(
+                            inners[0].clone(),
+                            inners[1].clone(),
+                            path.path.clone(),
+                        ))
+                    } else {
+                        println!("Invalid map-like type: {:#?}", ty);
+                        None
+                    }
+                }
+                _cell if SUPPORTED_CELLLIKE.contains(&ident.as_str()) => {
+                    // Handle types like `Arc`, `Cell`, `RefCell`, etc.
+                    if inners.len() == 1 {
+                        Some(TypeWrapper::CellLike(inners[0].clone(), path.path.clone()))
+                    } else {
+                        println!("Invalid cell-like type: {:#?}", ty);
+                        None
+                    }
+                }
+                _arc if SUPPORTED_ARCLIKE.contains(&ident.as_str()) => {
+                    // Handle types like `Arc`, `Rc`, etc.
+                    if inners.len() == 1 {
+                        Some(TypeWrapper::ArcLike(inners[0].clone(), path.path.clone()))
+                    } else {
+                        println!("Invalid arc-like type: {:#?}", ty);
+                        None
+                    }
+                }
+                _ => match inners.len() {
+                    0 => Some(TypeWrapper::OtherPathZero(path.path.clone())),
+                    1 => Some(TypeWrapper::OtherPathOne(
+                        inners[0].clone(),
+                        path.path.clone(),
+                    )),
+                    _ => Some(TypeWrapper::OtherPathMany(inners, path.path.clone())),
+                },
             }
         }
         Type::Tuple(inner) => {
@@ -211,11 +269,64 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
                 expansions.push(exp);
             }
             // Finally, create the top-level expression that combines all expansions.
-            println!("Final Top: {}", top);
             let exp = quote! {
                 (#(#expansions),*)
             };
-            println!("Expansion: {}", exp);
+            (exp, top)
+        }
+        Some(TypeWrapper::CellLike(inner, path)) => {
+            // Handle types like `Cell<T>`, `RefCell<T>`, etc.
+            println!(
+                "WARNING: Tokenising a Cell-like type ({}) will effectively clone its value. This may not be the intended behaviour!",
+                path.to_token_stream()
+            );
+            let inner_ident = format_ident!("{}_cell", ident);
+            let (inner_exp, inner_top) = expand_field(&inner, &inner_ident);
+            let top = quote! {
+                #inner_top
+                let #inner_ident = #ident.clone().into_inner();
+            };
+            let exp = quote! {
+                #path::new(#inner_exp)
+            };
+            (exp, top)
+        }
+        Some(TypeWrapper::ArcLike(inner, path)) => {
+            // Handle types like `Arc<T>`, `Rc<T>`, etc.
+            println!(
+                "WARNING: Arc-like type ({}) will be handled by cloning its inner value. This may not be the intended behaviour!",
+                path.to_token_stream()
+            );
+            let inner_ident = format_ident!("{}_arc", ident);
+            let (inner_exp, inner_top) = expand_field(&inner, &inner_ident);
+            let top = quote! {
+                #inner_top
+                let #inner_ident = #ident.as_ref();
+            };
+            let exp = quote! {
+                #path::new(#inner_exp)
+            };
+            (exp, top)
+        }
+        Some(TypeWrapper::MapLike(kt, vt, path)) => {
+            let inner_ident = format_ident!("{}_map", ident);
+            let key_ident = format_ident!("{}_map_key", ident);
+            let value_ident = format_ident!("{}_map_value", ident);
+            let (key_exp, key_top) = expand_field(&kt, &key_ident);
+            let (value_exp, value_top) = expand_field(&vt, &value_ident);
+            // Generate top-level binding
+            let top = quote! {
+                #key_top
+                #value_top
+                let #inner_ident = #ident.iter().map(|(#key_ident, #value_ident)| {
+                    ::quote::quote! { (#key_exp, #value_exp) }
+                }).collect::<Vec<_>>();
+            };
+            // Generate the key and value sequences.
+            let seq = expand_sequence(&inner_ident);
+            let exp = quote! {
+                #path::from([#seq])
+            };
             (exp, top)
         }
         _ => {
