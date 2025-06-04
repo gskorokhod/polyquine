@@ -1,6 +1,6 @@
-use proc_macro2::{Ident, Punct, Spacing, TokenStream};
-use quote::{quote, ToTokens, TokenStreamExt};
-use syn::{Result, DataEnum, Fields, Variant, FieldsUnnamed};
+use proc_macro2::{Delimiter, Group, Ident, Punct, Spacing, TokenStream};
+use quote::{format_ident, quote, ToTokens, TokenStreamExt};
+use syn::{Result, DataEnum, Fields, Variant, FieldsUnnamed, Type};
 use syn::spanned::Spanned;
 use crate::util::{type_wrapper, TypeWrapper};
 
@@ -39,50 +39,21 @@ fn expand_variant(prefix: &impl ToTokens, variant: &Variant) -> Result<TokenStre
         Fields::Unnamed(fields) => {
             // For tuple variants, generate bindings for each field.
             // E.g: Enum::Tuple(a, b) -> quote! { Enum::Tuple(#a, #b) }
-            let mut bindings: Vec<TokenStream> = vec![];
-            let mut expansions: Vec<TokenStream> = vec![];
+
+            let mut bindings: Vec<TokenStream> = vec![];   // Field bindings (e.g. `match Enum::Tuple(a, b)`)
+            let mut expansions: Vec<TokenStream> = vec![]; // Expanded field expressions (e.g. `#a`, `#b`)
+            let mut top_exprs: Vec<TokenStream> = vec![];  // Top-level expressions for each field (e.g. `let a = &self.a;`)
+
             for (i, field) in fields.unnamed.iter().enumerate() {
                 let field_ident = Ident::new(&format!("field_{}", i), field.span());
+                let (exp, top) = expand_field(&field.ty, &field_ident);
                 bindings.push(field_ident.to_token_stream());
-                match type_wrapper(&field.ty) {
-                    Some(TypeWrapper::Box(inner)) => {
-                        expansions.push(quote! {
-                            Box::new(#field_ident.into()) // TODO: Handler should be recursive (e.g. Box<Box<T>>)
-                        })
-                    }
-                    Some(TypeWrapper::Vec(inner)) => {
-                        let hash = Punct::new('#', Spacing::Joint);
-                        expansions.push(quote! { vec![ #hash (#hash #field_ident.into(),)* ] })
-                    }
-                    Some(TypeWrapper::Option(inner)) => {
-                        let mut value = TokenStream::new();
-                        value.append(Punct::new('#', Spacing::Joint));
-                        value.append(Ident::new("value", field.span()));
-
-                        expansions.push(quote! {
-                            match #field_ident {
-                                Some(value) => quote! { Some(#value.into()) }, // TODO: Handler should be recursive (e.g. Option<Option<T>>)
-                                None => quote! { None },
-                            } // TODO: Handler should be recursive (e.g. Option<Option<T>>)
-                        });
-                    }
-                    Some(TypeWrapper::Tuple(inner)) => {
-                        todo!("Handle tuple types in enum variants");
-                    }
-                    None => {
-                        // For other types, push `#a` (where `a` is the field identifier).
-                        // I.e. bind the field directly and use its own ToTokens implementation.
-                        let mut ts = TokenStream::new();
-                        ts.append(Punct::new('#', Spacing::Joint));
-                        ts.append(field_ident);
-                        expansions.push(quote! {
-                            #ts.into()
-                        });
-                    }
-                }
+                expansions.push(exp);
+                top_exprs.push(top);
             }
             Ok(quote! {
                 #prefix::#variant_name ( #( #bindings ),* ) => {
+                    #(#top_exprs)*
                     tokens.extend(::quote::quote! { #prefix::#variant_name ( #(#expansions),* ) });
                 }
             })
@@ -93,4 +64,84 @@ fn expand_variant(prefix: &impl ToTokens, variant: &Variant) -> Result<TokenStre
             todo!("Handle named fields in enums");
         },
     }
+}
+
+fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
+    match type_wrapper(ty) {
+        Some(TypeWrapper::Box(inner)) => {
+            let (inner_exp, inner_top) = expand_field(&inner, ident);
+            let exp = quote! {
+                Box::new(#inner_exp)
+            };
+            (exp, inner_top)
+        }
+        Some(TypeWrapper::Vec(inner)) => {
+            // Expand the inner type and save its generated `quote!` expression.
+            let inner_exp_ident = format_ident!("{}_vec", ident);
+            let inner_item_ident = format_ident!("{}_vec_item", ident);
+            let (inner_exp, inner_top) = expand_field(&inner, &inner_item_ident);
+            let top = quote! {
+                let #inner_exp_ident = #ident.iter().map(|#inner_item_ident: &#inner| {
+                    #inner_top
+                    ::quote::quote! { #inner_exp }
+                }).collect::<Vec<_>>();
+            };
+            // Now, generate the `vec!` containing the expanded items.
+            let seq_exp = expand_sequence(&inner_exp_ident);
+            let exp = quote! {
+                vec![ #seq_exp ]
+            };
+            (exp, top)
+        }
+        Some(TypeWrapper::Option(inner)) => {
+            let gen_ident = format_ident!("{}_option", ident);
+            let val_ident = format_ident!("{}_option_val", ident);
+            // Expand the inner type and save its generated `quote!` expression.
+            let (inner_val, inner_top) = expand_field(&inner, &val_ident);
+            // Generate a match! statement that handles the `Option` type.
+            let top = quote! {
+                #inner_top
+                let #gen_ident = match #ident {
+                    Some(#val_ident) => ::quote::quote! { Some(#inner_val) },
+                    None => ::quote::quote! { None },
+                };
+            };
+            let mut exp = TokenStream::new();
+            exp.append(Punct::new('#', Spacing::Joint));
+            exp.append(gen_ident);
+            (exp, top)
+        }
+        Some(TypeWrapper::Tuple(inner)) => {
+            todo!("Handle tuple types in enum variants");
+        }
+        None => {
+            // For other types, push `#a` (where `a` is the field identifier).
+            // I.e. bind the field directly and use its own ToTokens implementation.
+            let mut ts = TokenStream::new();
+            ts.append(Punct::new('#', Spacing::Joint));
+            ts.append(ident.clone());
+            (quote!{ #ts.into() }, TokenStream::new())
+        }
+    }
+}
+
+fn expand_sequence(seq: &Ident) -> TokenStream {
+    // Expands to: "#(#ident),*"
+    let mut inner = TokenStream::new();
+
+    // Add "#"
+    inner.append(Punct::new('#', Spacing::Alone));
+
+    // Add parenthesized group "(#<field ident>)"
+    let mut paren_content = TokenStream::new();
+    paren_content.append(Punct::new('#', Spacing::Alone));
+    paren_content.append(seq.clone());
+    let paren_group = Group::new(Delimiter::Parenthesis, paren_content);
+    inner.append(paren_group);
+
+    // Add ",*"
+    inner.append(Punct::new(',', Spacing::Alone));
+    inner.append(Punct::new('*', Spacing::Alone));
+
+    inner
 }

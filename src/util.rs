@@ -43,12 +43,12 @@ pub fn add_bounds(
 /// Helper type for parsing the meta attributes of the
 /// type for which `Parse` and `ToTokens` are being `#[derive]`d.
 #[derive(Clone, Default, Debug, ExtractAttributes)]
-#[deluxe(attributes(to_tokens))]
+#[deluxe(attributes(polyquine))]
 pub struct Attrs {
     /// Indicates that the field participates in (possibly mutual) recursion
     /// at the type level, e.g. a parent-child relationship within the same
     /// struct/enum. The type of such fields will be omitted from the `where`
-    /// clause in the derived implementations, becuse the corresponding
+    /// clause in the derived implementations, because the corresponding
     /// constraints can't be satisfied, and the code compiles without them.
     ///
     /// Hopefully, this can be removed in the future once Chalk lands;

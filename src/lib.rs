@@ -12,7 +12,7 @@ use syn::{Data, DataEnum, DataStruct, DeriveInput, Error, Fields, Result};
 use syn::{FieldsNamed, FieldsUnnamed, Type, parse_quote};
 use util::{TypeWrapper, type_wrapper};
 
-#[proc_macro_derive(ToTokens, attributes(to_tokens))]
+#[proc_macro_derive(ToTokens, attributes(polyquine))]
 pub fn derive_to_tokens(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let res = expand(item.into()).unwrap_or_else(|err| err.to_compile_error());
     res.into()
