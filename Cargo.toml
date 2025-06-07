@@ -1,6 +1,9 @@
 [package]
 name = "polyquine"
-version = "0.1.0"
+license = "MIT"
+keywords = ["proc-macro", "quote", "ToTokens", "derive", "metaprogramming"]
+categories = ["development-tools::procedural-macro-helpers"]
+version = "0.0.1"
 edition = "2024"
 
 [dependencies]
