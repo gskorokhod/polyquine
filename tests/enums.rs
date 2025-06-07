@@ -3,6 +3,12 @@ use quote::{ToTokens, quote};
 use std::collections::VecDeque;
 
 #[derive(ToTokens)]
+enum TestEnum2 {
+    A(i32, String),
+    Rec(#[polyquine(recursive)] Box<TestEnum>),
+}
+
+#[derive(ToTokens)]
 enum TestEnum {
     Unit,
     Basic(i32, String),
@@ -22,6 +28,8 @@ enum TestEnum {
     },
     IntVecDeque(VecDeque<i32>),
     IntSet(std::collections::HashSet<i32>),
+    IntLinkedList(std::collections::LinkedList<i32>),
+    StrBinaryHeap(std::collections::BinaryHeap<String>),
     BasicTuple(i32, (String, f64)),
     NestedTuple(i32, (String, (Vec<i32>, bool))),
     BasicHashMap(std::collections::HashMap<String, i32>),
@@ -29,6 +37,7 @@ enum TestEnum {
     BasicCell(std::cell::Cell<i32>),
     BasicRefCell(std::cell::RefCell<i32>),
     BasicRc(std::rc::Rc<i32>),
+    Nested(Box<TestEnum2>),
 }
 
 #[test]
@@ -289,6 +298,62 @@ fn test_enum_basic_rc() {
         tokens.to_string(),
         quote! {
             TestEnum::BasicRc(std::rc::Rc::<i32>::new(42i32.into()))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_linked_list() {
+    let list = std::collections::LinkedList::<i32>::from([1, 2, 3]);
+    let test_enum = TestEnum::IntLinkedList(list);
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::IntLinkedList(std::collections::LinkedList::<i32>::from([1i32.into(), 2i32.into(), 3i32.into()]))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_str_binary_heap() {
+    let heap = std::collections::BinaryHeap::<String>::from(["b".to_string(), "a".to_string()]);
+    let test_enum = TestEnum::StrBinaryHeap(heap);
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::StrBinaryHeap(std::collections::BinaryHeap::<String>::from(["b".into(), "a".into()]))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_nested_basic() {
+    let nested_enum = TestEnum2::A(42, "Nested".to_string());
+    let test_enum = TestEnum::Nested(Box::new(nested_enum));
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::Nested(Box::new(TestEnum2::A(42i32.into(), "Nested".into()).into()))
+        }
+        .to_string()
+    );
+}
+
+#[test]
+fn test_enum_nested_recursive() {
+    let inner_enum = TestEnum2::Rec(Box::new(TestEnum::Basic(500, "Inner Rec".to_string())));
+    let test_enum = TestEnum::Nested(Box::new(inner_enum));
+    let tokens = test_enum.to_token_stream();
+    assert_eq!(
+        tokens.to_string(),
+        quote! {
+            TestEnum::Nested(Box::new(TestEnum2::Rec(Box::new(TestEnum::Basic(500i32.into(), "Inner Rec".into()).into())).into()))
         }
         .to_string()
     );

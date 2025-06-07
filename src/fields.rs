@@ -22,7 +22,14 @@ pub enum TypeWrapper {
     Tuple(Vec<Type>),
 }
 
-static SUPPORTED_ITERABLES: &[&str] = &["Vec", "HashSet", "VecDeque", "BTreeSet"];
+static SUPPORTED_ITERABLES: &[&str] = &[
+    "Vec",
+    "HashSet",
+    "VecDeque",
+    "BTreeSet",
+    "LinkedList",
+    "BinaryHeap",
+];
 static SUPPORTED_MAPLIKES: &[&str] = &["HashMap", "BTreeMap"];
 static SUPPORTED_CELLLIKE: &[&str] = &["Cell", "RefCell"];
 static SUPPORTED_ARCLIKE: &[&str] = &["Arc", "Rc"];
@@ -326,6 +333,15 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
             let seq = expand_sequence(&inner_ident);
             let exp = quote! {
                 #path::from([#seq])
+            };
+            (exp, top)
+        }
+        Some(TypeWrapper::OtherPathOne(inner, path)) => {
+            // For types with one generic argument, push `#a` (where `a` is the field identifier).
+            // I.e. bind the field directly and use its own ToTokens implementation.
+            let (inner_exp, top) = expand_field(&inner, ident);
+            let exp = quote! {
+                #path::from(#inner_exp.into())
             };
             (exp, top)
         }
