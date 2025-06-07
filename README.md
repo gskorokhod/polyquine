@@ -23,6 +23,31 @@ assert_eq!(
 );
 ```
 
+Currently, enums and structs are supported.
+
+It is also possible to bring your own implementation for a specific field:
+
+```rust
+#[derive(ToTokens)]
+enum TestEnum {
+    // Custom tokeniser for string (appends "Hello, ")
+    A(
+        i32,
+        #[polyquine(custom_with = |s| "Hello, ".to_string() + s)] String,
+    ),
+}
+
+let test_enum = TestEnum::A(42, "World".to_string());
+let tokens = test_enum.to_token_stream();
+assert_eq!(
+    tokens.to_string(),
+    quote! {
+        TestEnum::A(42i32.into(), "Hello, World".into())
+    }
+    .to_string()
+);
+```
+
 # Acknowledgements
 
 Some code was shamelessly stolen from the [parsel](https://github.com/H2CO3/parsel/blob/master/parsel_derive/src/to_tokens.rs) crate, which is cool and you should check it out maybe.
