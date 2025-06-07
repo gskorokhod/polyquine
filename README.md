@@ -64,12 +64,13 @@ See [this PR](https://github.com/conjure-cp/conjure-oxide/pull/710) as proof tha
 
 - Handles common types like `Vec`, `Box`, `HashMap`, etc, even though they do not implement `ToTokens` in this way themselves
 - Handles nested types and recursion
+- Can be controlled with additional attributes:
+  - `custom_with` - Provide your own ToTokens implementation for a specific field
 
 # TODO
 
-- Handle structs
 - More testing
-- Allow the user to supply their own `ToTokens` implementation for a specific field / enum variant
+- Allow the user to supply their own `ToTokens` implementation for an entire enum variant (not just fields)
 - Make fields skippable
 
 # Production readiness
@@ -80,7 +81,7 @@ no.
 
 A quine is a program that outputs its own source code.
 This crate teaches an arbitrary enum / struct to generate a Rust program that constructs it, thereby making it a quine.
-This is only slightly pretentious.
+So, polyquine! This is only slightly pretentious.
 
 ---
 
