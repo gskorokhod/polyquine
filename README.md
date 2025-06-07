@@ -1,5 +1,11 @@
 Polyquine: Teach Rust types to codegen their own constructor!
 
+crates.io: [polyquine](https://crates.io/crates/polyquine)
+
+```
+cargo add polyquine
+```
+
 # Purpose
 
 This crate contains a `#[derive(ToTokens)]` macro.
