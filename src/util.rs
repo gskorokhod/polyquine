@@ -5,9 +5,9 @@ use deluxe::ExtractAttributes;
 use proc_macro2::{Delimiter, Group, Ident, Punct, Spacing, TokenStream};
 use quote::TokenStreamExt;
 use std::collections::HashSet;
-use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::{Data, DeriveInput, Error, Result, Token};
+use syn::{ExprClosure, parse_quote};
 use syn::{TypeParamBound, WhereClause, WherePredicate};
 
 /// Helper type for parsing the meta attributes of the
@@ -25,6 +25,9 @@ pub struct Attrs {
     /// see [this issue](https://github.com/rust-lang/rust/issues/48214)
     #[deluxe(default = false)]
     pub recursive: bool,
+
+    #[deluxe(default = None)]
+    pub custom_with: Option<ExprClosure>,
 }
 
 /// Generates a `where` clause with the specified bounds applied to all field types.

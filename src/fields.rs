@@ -51,7 +51,7 @@ pub fn field_types(flds: Fields) -> Vec<Type> {
 /// E.g. if the field is a `Vec<Option<Box<(i32, bool)>>>`, it will return [i32, bool].
 pub fn leaf_types(mut field: Field) -> Vec<Type> {
     let attrs: Attrs = deluxe::extract_attributes(&mut field).unwrap();
-    if attrs.recursive {
+    if attrs.recursive || attrs.custom_with.is_some() {
         return vec![];
     }
     leaf_types_impl(&field.ty)
@@ -208,10 +208,30 @@ pub fn type_wrapper(ty: &Type) -> Option<TypeWrapper> {
 /// ```none
 /// ::quote::quote! { #value_option.into() }
 /// ```
-pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
+pub fn expand_field(fld: &Field, ident: &Ident) -> (TokenStream, TokenStream) {
+    let mut field = fld.clone();
+    let attrs: Attrs = deluxe::extract_attributes(&mut field).unwrap();
+
+    if let Some(custom_with) = attrs.custom_with {
+        // If the field has a custom `with` attribute, use it.
+        let exp_ident = format_ident!("{}_custom", ident);
+        let top = quote! {
+            let #exp_ident = (#custom_with)(&#ident);
+        };
+        let exp = quote! {
+            # #exp_ident.into()
+        };
+        return (exp, top);
+    }
+
+    let ty = &fld.ty;
+    expand_field_impl(ty, ident)
+}
+
+pub fn expand_field_impl(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
     match type_wrapper(ty) {
         Some(TypeWrapper::Box(inner)) => {
-            let (inner_exp, inner_top) = expand_field(&inner, ident);
+            let (inner_exp, inner_top) = expand_field_impl(&inner, ident);
             let exp = quote! {
                 Box::new(#inner_exp)
             };
@@ -221,7 +241,7 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
             // Handle types like `HashSet`, `VecDeque`, etc.
             let inner_exp_ident = format_ident!("{}_vec_like", ident);
             let inner_item_ident = format_ident!("{}_vec_like_item", ident);
-            let (inner_exp, inner_top) = expand_field(&inner, &inner_item_ident);
+            let (inner_exp, inner_top) = expand_field_impl(&inner, &inner_item_ident);
             let top = quote! {
                 let #inner_exp_ident = #ident.iter().map(|#inner_item_ident: &#inner| {
                     #inner_top
@@ -243,7 +263,7 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
             let gen_ident = format_ident!("{}_option", ident);
             let val_ident = format_ident!("{}_option_val", ident);
             // Expand the inner type and save its generated `quote!` expression.
-            let (inner_val, inner_top) = expand_field(&inner, &val_ident);
+            let (inner_val, inner_top) = expand_field_impl(&inner, &val_ident);
             // Generate a match! statement that handles the `Option` type.
             let top = quote! {
                 #inner_top
@@ -271,7 +291,7 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
             // Next, generate expansions for each field in the tuple.
             for (i, ty) in inner.iter().enumerate() {
                 let field_ident = format_ident!("{}_tuple_{}", ident, i);
-                let (exp, top_expr) = expand_field(ty, &field_ident);
+                let (exp, top_expr) = expand_field_impl(ty, &field_ident);
                 top.extend(top_expr.clone());
                 expansions.push(exp);
             }
@@ -288,7 +308,7 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
                 path.to_token_stream()
             );
             let inner_ident = format_ident!("{}_cell", ident);
-            let (inner_exp, inner_top) = expand_field(&inner, &inner_ident);
+            let (inner_exp, inner_top) = expand_field_impl(&inner, &inner_ident);
             let top = quote! {
                 #inner_top
                 let #inner_ident = #ident.clone().into_inner();
@@ -305,7 +325,7 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
                 path.to_token_stream()
             );
             let inner_ident = format_ident!("{}_arc", ident);
-            let (inner_exp, inner_top) = expand_field(&inner, &inner_ident);
+            let (inner_exp, inner_top) = expand_field_impl(&inner, &inner_ident);
             let top = quote! {
                 #inner_top
                 let #inner_ident = #ident.as_ref();
@@ -319,8 +339,8 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
             let inner_ident = format_ident!("{}_map", ident);
             let key_ident = format_ident!("{}_map_key", ident);
             let value_ident = format_ident!("{}_map_value", ident);
-            let (key_exp, key_top) = expand_field(&kt, &key_ident);
-            let (value_exp, value_top) = expand_field(&vt, &value_ident);
+            let (key_exp, key_top) = expand_field_impl(&kt, &key_ident);
+            let (value_exp, value_top) = expand_field_impl(&vt, &value_ident);
             // Generate top-level binding
             let top = quote! {
                 #key_top
@@ -339,7 +359,7 @@ pub fn expand_field(ty: &Type, ident: &Ident) -> (TokenStream, TokenStream) {
         Some(TypeWrapper::OtherPathOne(inner, path)) => {
             // For types with one generic argument, push `#a` (where `a` is the field identifier).
             // I.e. bind the field directly and use its own ToTokens implementation.
-            let (inner_exp, top) = expand_field(&inner, ident);
+            let (inner_exp, top) = expand_field_impl(&inner, ident);
             let exp = quote! {
                 #path::from(#inner_exp.into())
             };

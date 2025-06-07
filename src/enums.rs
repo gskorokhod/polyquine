@@ -49,7 +49,7 @@ fn expand_variant(prefix: &impl ToTokens, variant: &Variant) -> Result<TokenStre
                     // E.g: Enum::Tuple(a, b) -> quote! { Enum::Tuple(#a, #b) }
                     for (i, field) in fields.unnamed.iter().enumerate() {
                         let field_ident = Ident::new(&format!("field_{}", i), field.span());
-                        let (exp, top) = expand_field(&field.ty, &field_ident);
+                        let (exp, top) = expand_field(&field, &field_ident);
                         bindings.push(field_ident.to_token_stream());
                         expansions.push(exp);
                         top_exprs.push(top);
@@ -69,7 +69,7 @@ fn expand_variant(prefix: &impl ToTokens, variant: &Variant) -> Result<TokenStre
                             .ident
                             .as_ref()
                             .expect("named variant must have field names");
-                        let (exp, top) = expand_field(&field.ty, field_ident);
+                        let (exp, top) = expand_field(&field, field_ident);
                         bindings.push(field_ident.to_token_stream());
                         expansions.push(exp);
                         top_exprs.push(top);

@@ -13,7 +13,7 @@ pub fn expand_struct(ty_name: &Ident, data: &DataStruct) -> Result<TokenStream> 
             for field in fields.named.iter() {
                 match field.ident {
                     Some(ref ident) => {
-                        let (exp, top_expr) = expand_field(&field.ty, ident);
+                        let (exp, top_expr) = expand_field(&field, ident);
                         exps.push(quote! { #ident: #exp });
                         top.extend(quote! {
                             let #ident = &self.#ident;
@@ -39,7 +39,7 @@ pub fn expand_struct(ty_name: &Ident, data: &DataStruct) -> Result<TokenStream> 
             for (i, field) in fields.unnamed.iter().enumerate() {
                 let ident = Ident::new(&format!("field_{}", i), field.span());
                 let idx = syn::Index::from(i);
-                let (exp, top_expr) = expand_field(&field.ty, &ident);
+                let (exp, top_expr) = expand_field(&field, &ident);
                 exps.push(exp);
                 top.extend(quote! {
                     let #ident = &self.#idx;
