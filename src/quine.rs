@@ -2,9 +2,17 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
+use ustr::Ustr;
 
 pub trait Quine {
     fn ctor_tokens(&self) -> TokenStream;
+}
+
+impl Quine for Ustr {
+    fn ctor_tokens(&self) -> TokenStream {
+        let s = self.as_str();
+        quote! {Ustr::from(#s)}
+    }
 }
 
 impl<T: Quine> Quine for &T {
@@ -255,6 +263,15 @@ mod test {
                     ])
                 )
             },
+        );
+    }
+
+    #[test]
+    fn test_ustr() {
+        let u1 = Ustr::from("the quick brown fox");
+        assert_ts_eq(
+            &u1.ctor_tokens(),
+            &quote! {Ustr::from("the quick brown fox")},
         );
     }
 }
