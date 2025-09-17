@@ -3,6 +3,8 @@ name = "polyquine-derive"
 license = "MIT"
 keywords = ["proc-macro", "quote", "ToTokens", "derive", "metaprogramming"]
 categories = ["development-tools::procedural-macro-helpers"]
+description = "Teach Rust types to codegen their own constructors"
+repository = "https://github.com/gskorokhod/polyquine"
 version = "0.0.2"
 edition = "2024"
 
