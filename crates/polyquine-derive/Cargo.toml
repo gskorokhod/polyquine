@@ -1,12 +1,15 @@
 [package]
-name = "polyquine"
+name = "polyquine-derive"
 license = "MIT"
 keywords = ["proc-macro", "quote", "ToTokens", "derive", "metaprogramming"]
 categories = ["development-tools::procedural-macro-helpers"]
 version = "0.0.2"
 edition = "2024"
 
+[lib]
+proc-macro = true
+
 [dependencies]
 proc-macro2 = "1.0.101"
 quote = "1.0.40"
-polyquine-derive = { path = "crates/polyquine-derive", version = "0.0.2" }
+syn = "2.0.101"
