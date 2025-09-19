@@ -65,6 +65,10 @@ mod test {
     use super::*;
     #[allow(unused)]
     use crate::Quine;
+    #[allow(unused)]
+    use std::fmt::Display;
+    #[allow(unused)]
+    use std::fmt::Formatter;
 
     #[allow(unused)]
     fn assert_ts_eq(left: &TokenStream, right: &TokenStream) {
@@ -273,5 +277,58 @@ mod test {
             &u1.ctor_tokens(),
             &quote! {Ustr::from("the quick brown fox")},
         );
+    }
+
+    #[test]
+    fn test_struct_with_generic() {
+        struct BadInner {}
+
+        impl Display for BadInner {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                write!(f, "BadInner")
+            }
+        }
+
+        #[derive(Quine)]
+        struct Test<T: Display> {
+            value: T,
+        }
+
+        let bad: Test<BadInner> = Test { value: BadInner {} };
+        //bad.ctor_tokens(); // Should not compile
+
+        let good: Test<String> = Test {
+            value: String::from("Hello World"),
+        };
+        assert_ts_eq(
+            &good.ctor_tokens(),
+            &quote! {
+                Test {
+                    value: String::from("Hello World")
+                }
+            },
+        );
+    }
+
+    #[test]
+    fn test_enum_with_generic() {
+        struct BadInner {}
+
+        #[derive(Quine)]
+        enum TestEnum<T> {
+            A(T),
+            B,
+        }
+
+        let bad = TestEnum::A(BadInner {});
+        // bad.ctor_tokens();
+
+        let good = TestEnum::A(String::from("Hello World"));
+        assert_ts_eq(
+            &good.ctor_tokens(),
+            &quote! {
+                TestEnum::A(String::from("Hello World"))
+            },
+        )
     }
 }

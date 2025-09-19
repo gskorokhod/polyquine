@@ -5,7 +5,7 @@ keywords = ["proc-macro", "quote", "ToTokens", "derive", "metaprogramming"]
 categories = ["development-tools::procedural-macro-helpers"]
 description = "Teach Rust types to codegen their own constructors"
 repository = "https://github.com/gskorokhod/polyquine"
-version = "0.0.3"
+version = "0.0.5"
 edition = "2024"
 
 [lib]
@@ -14,4 +14,4 @@ proc-macro = true
 [dependencies]
 proc-macro2 = "1.0.101"
 quote = "1.0.40"
-syn = "2.0.101"
+syn = { version = "2.0.101", features = ["proc-macro", "parsing"] }
