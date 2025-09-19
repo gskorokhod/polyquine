@@ -19,7 +19,15 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
     let body = match input.data {
         // Derive for structs
         Data::Struct(data) => match &data.fields {
-            Fields::Unit => quote! { ::quote::quote!{#ident {}} },
+            Fields::Unit => {
+                let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
+                quote! {
+                    use syn::{parse_str, Path};
+                    let fully_qualified_path = concat!("::",module_path!(), "::", stringify!(#ident));
+                    let path: syn::Path = parse_str(fully_qualified_path).unwrap();
+                    ::quote::quote!{#path {}}
+                }
+            }
             Fields::Unnamed(fields) => {
                 let (decls, exps): (Vec<TokenStream2>, Vec<TokenStream2>) = fields
                     .unnamed
@@ -34,9 +42,13 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
                         (field_let, hash_ident(&idnt))
                     })
                     .unzip();
+                let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
                 quote! {
                     #(#decls)*
-                    ::quote::quote!{#ident(#(#exps),*)}
+                    use syn::{parse_str, Path};
+                    let fully_qualified_path = concat!("::",module_path!(), "::", stringify!(#ident));
+                    let path: syn::Path = parse_str(fully_qualified_path).unwrap();
+                    ::quote::quote!{#path(#(#exps),*)}
                 }
             }
             Fields::Named(fields) => {
@@ -53,9 +65,13 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
                         (field_let, field_exp)
                     })
                     .unzip();
+                let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
                 quote! {
                     #(#decls)*
-                    ::quote::quote!{#ident{#(#exps),*}}
+                    use syn::{parse_str, Path};
+                    let fully_qualified_path = concat!("::",module_path!(), "::", stringify!(#ident));
+                    let path: syn::Path = parse_str(fully_qualified_path).unwrap();
+                    ::quote::quote!{#path{#(#exps),*}}
                 }
             }
         },
@@ -64,7 +80,13 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
                 let variant_idnt = &v.ident;
                 match &v.fields {
                     Fields::Unit => {
-                        quote! {#ident::#variant_idnt => ::quote::quote!{#ident::#variant_idnt}}
+                        let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
+                        quote! {#ident::#variant_idnt => {
+                            use syn::{parse_str, Path};
+                            let fully_qualified_path = concat!("::",module_path!(), "::", stringify!(#ident));
+                            let path: syn::Path = parse_str(fully_qualified_path).unwrap();
+                            ::quote::quote!{#path::#variant_idnt}
+                        }}
                     }
                     Fields::Unnamed(fields) => {
                         let mut binds: Vec<Ident> = Vec::new();
@@ -81,10 +103,14 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
                             decls.push(field_let);
                             exps.push(hash_ident(&exp_idnt));
                         }
+                        let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
                         quote! {
                             #ident::#variant_idnt(#(#binds),*) => {
                                 #(#decls)*
-                                ::quote::quote!{#ident::#variant_idnt(#(#exps),*)}
+                                use syn::{parse_str, Path};
+                                let fully_qualified_path = concat!("::",module_path!(), "::", stringify!(#ident));
+                                let path: syn::Path = parse_str(fully_qualified_path).unwrap();
+                                ::quote::quote!{#path::#variant_idnt(#(#exps),*)}
                             }
                         }
                     }
@@ -100,14 +126,19 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
                                 let #exp_idnt = #idnt.ctor_tokens();
                             };
                             let hash_idnt = hash_ident(&exp_idnt);
+
                             binds.push(idnt.clone());
                             decls.push(field_let);
                             exps.push(quote! { #idnt: #hash_idnt });
                         }
+                        let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
                         quote! {
                             #ident::#variant_idnt{#(#binds),*} => {
                                 #(#decls)*
-                                ::quote::quote!{#ident::#variant_idnt{#(#exps),*}}
+                                use syn::{parse_str, Path};
+                                let fully_qualified_path = concat!("::",module_path!(), "::", stringify!(#ident));
+                                let path: syn::Path = parse_str(fully_qualified_path).unwrap();
+                                ::quote::quote!{#path::#variant_idnt{#(#exps),*}}
                             }
                         }
                     }
