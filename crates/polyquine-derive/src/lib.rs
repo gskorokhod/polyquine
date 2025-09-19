@@ -126,7 +126,7 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
 
     let ans = quote! {
         impl #impl_gen Quine for #ident #ty_gen #where_clause {
-            fn ctor_tokens(&self) -> TokenStream {
+            fn ctor_tokens(&self) -> ::proc_macro2::TokenStream {
                 #body
             }
         }
