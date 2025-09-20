@@ -68,6 +68,16 @@ mod test {
     #[allow(unused)]
     use crate::quine;
 
+    mod custom_module {
+        use super::*;
+
+        #[derive(Quine)]
+        #[with_module(polyquine::quine::test)]
+        pub struct Custom {
+            pub value: i32,
+        }
+    }
+
     #[allow(unused)]
     fn assert_ts_eq(left: &TokenStream, right: &TokenStream) {
         assert_eq!(left.to_string(), right.to_string());
@@ -104,6 +114,15 @@ mod test {
     fn test_slice() {
         let slice = [1i32, 2i32, 3i32];
         assert_ts_eq(&slice.ctor_tokens(), &quote! {[1i32, 2i32, 3i32]});
+    }
+
+    #[test]
+    fn test_custom_module_prefix() {
+        let value = custom_module::Custom { value: 42i32 };
+        assert_ts_eq(
+            &value.ctor_tokens(),
+            &quote! {::polyquine::quine::test::Custom { value: 42i32 }},
+        );
     }
 
     #[test]
