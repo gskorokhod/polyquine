@@ -96,6 +96,7 @@ dependencies = [
  "polyquine-derive",
  "proc-macro2",
  "quote",
+ "syn",
  "ustr",
 ]
 
