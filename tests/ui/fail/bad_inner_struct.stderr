@@ -1,0 +1,43 @@
+error[E0277]: the trait bound `BadInner: Quine` is not satisfied
+  --> tests/ui/fail/bad_inner_struct.rs:19:14
+   |
+19 |     let bad: Test<BadInner> = Test { value: BadInner {} };
+   |              ^^^^^^^^^^^^^^ the trait `Quine` is not implemented for `BadInner`
+   |
+   = help: the following other types implement trait `Quine`:
+             &T
+             &str
+             (A, B, C, D, E, F, G, H, I, J, K)
+             (B, C, D, E, F, G, H, I, J, K)
+             (C, D, E, F, G, H, I, J, K)
+             (D, E, F, G, H, I, J, K)
+             (E, F, G, H, I, J, K)
+             (F, G, H, I, J, K)
+           and $N others
+note: required by a bound in `Test`
+  --> tests/ui/fail/bad_inner_struct.rs:14:26
+   |
+14 | struct Test<T: Display + Quine> {
+   |                          ^^^^^ required by this bound in `Test`
+
+error[E0277]: the trait bound `BadInner: Quine` is not satisfied
+  --> tests/ui/fail/bad_inner_struct.rs:19:45
+   |
+19 |     let bad: Test<BadInner> = Test { value: BadInner {} };
+   |                                             ^^^^^^^^^^^ the trait `Quine` is not implemented for `BadInner`
+   |
+   = help: the following other types implement trait `Quine`:
+             &T
+             &str
+             (A, B, C, D, E, F, G, H, I, J, K)
+             (B, C, D, E, F, G, H, I, J, K)
+             (C, D, E, F, G, H, I, J, K)
+             (D, E, F, G, H, I, J, K)
+             (E, F, G, H, I, J, K)
+             (F, G, H, I, J, K)
+           and $N others
+note: required by a bound in `Test`
+  --> tests/ui/fail/bad_inner_struct.rs:14:26
+   |
+14 | struct Test<T: Display + Quine> {
+   |                          ^^^^^ required by this bound in `Test`

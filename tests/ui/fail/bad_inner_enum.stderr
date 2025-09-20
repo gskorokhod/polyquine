@@ -1,0 +1,47 @@
+error[E0277]: the trait bound `BadInner: Quine` is not satisfied
+  --> tests/ui/fail/bad_inner_enum.rs:14:27
+   |
+14 |     let bad = TestEnum::A(BadInner {});
+   |               ----------- ^^^^^^^^^^^ the trait `Quine` is not implemented for `BadInner`
+   |               |
+   |               required by a bound introduced by this call
+   |
+   = help: the following other types implement trait `Quine`:
+             &T
+             &str
+             (A, B, C, D, E, F, G, H, I, J, K)
+             (B, C, D, E, F, G, H, I, J, K)
+             (C, D, E, F, G, H, I, J, K)
+             (D, E, F, G, H, I, J, K)
+             (E, F, G, H, I, J, K)
+             (F, G, H, I, J, K)
+           and $N others
+note: required by a bound in `TestEnum::A`
+  --> tests/ui/fail/bad_inner_enum.rs:8:18
+   |
+8  | enum TestEnum<T: Quine> {
+   |                  ^^^^^ required by this bound in `TestEnum::A`
+9  |     A(T),
+   |     - required by a bound in this tuple variant
+
+error[E0277]: the trait bound `BadInner: Quine` is not satisfied
+  --> tests/ui/fail/bad_inner_enum.rs:14:15
+   |
+14 |     let bad = TestEnum::A(BadInner {});
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Quine` is not implemented for `BadInner`
+   |
+   = help: the following other types implement trait `Quine`:
+             &T
+             &str
+             (A, B, C, D, E, F, G, H, I, J, K)
+             (B, C, D, E, F, G, H, I, J, K)
+             (C, D, E, F, G, H, I, J, K)
+             (D, E, F, G, H, I, J, K)
+             (E, F, G, H, I, J, K)
+             (F, G, H, I, J, K)
+           and $N others
+note: required by a bound in `TestEnum`
+  --> tests/ui/fail/bad_inner_enum.rs:8:18
+   |
+8  | enum TestEnum<T: Quine> {
+   |                  ^^^^^ required by this bound in `TestEnum`

@@ -1,7 +1,8 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Punct, Spacing, TokenStream as TokenStream2};
-use quote::{TokenStreamExt, quote};
-use syn::{Data, DeriveInput, Fields, Ident, Index, Path, spanned::Spanned};
+use quote::{ToTokens, TokenStreamExt, quote};
+use syn::parse::Parse;
+use syn::{Data, DeriveInput, Fields, Ident, Index, Path, WherePredicate, spanned::Spanned};
 
 fn hash_ident(ident: &Ident) -> TokenStream2 {
     let mut hash_field = TokenStream2::new();
@@ -14,19 +15,19 @@ fn build_path_setup(ident: &Ident, module_prefix: Option<&Path>) -> TokenStream2
     match module_prefix {
         Some(prefix) => {
             quote! {
-                let path: ::syn::Path = ::syn::parse_quote!(::#prefix::#ident);
+                let path: ::syn::Path = ::syn::parse_quote!(#prefix::#ident);
             }
         }
         None => {
             quote! {
-                let fully_qualified_path = concat!("::", module_path!(), "::", stringify!(#ident));
+                let fully_qualified_path = concat!(module_path!(), "::", stringify!(#ident));
                 let path: ::syn::Path = ::syn::parse_str(fully_qualified_path).unwrap();
             }
         }
     }
 }
 
-#[proc_macro_derive(Quine, attributes(with_module))]
+#[proc_macro_derive(Quine, attributes(path_prefix))]
 pub fn derive_quine(input: TokenStream) -> TokenStream {
     let input: DeriveInput = syn::parse2(input.into()).unwrap();
     let generics = input.generics;
@@ -34,9 +35,9 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
 
     let mut module_prefix: Option<Path> = None;
     for attr in &input.attrs {
-        if attr.path().is_ident("with_module") {
+        if attr.path().is_ident("path_prefix") {
             if module_prefix.is_some() {
-                return syn::Error::new(attr.span(), "duplicate with_module attribute")
+                return syn::Error::new(attr.span(), "duplicate path_prefix attribute")
                     .to_compile_error()
                     .into();
             }
@@ -49,6 +50,7 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
 
     let path_setup = build_path_setup(&ident, module_prefix.as_ref());
     let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
+
     let body = match input.data {
         // Derive for structs
         Data::Struct(data) => match &data.fields {
