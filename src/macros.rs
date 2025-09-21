@@ -73,6 +73,7 @@ macro_rules! derive_tuple {
         impl<$($name: Quine),*> Quine for ($($name,)*)
         {
             fn ctor_tokens(&self) -> TokenStream {
+                #[allow(non_snake_case)]
                 let ($($name,)*) = self;
                 let ctors = vec![$($name.ctor_tokens()),*];
                 quote! {

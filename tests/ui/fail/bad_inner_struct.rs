@@ -11,11 +11,11 @@ impl Display for BadInner {
 }
 
 #[derive(Quine)]
-struct Test<T: Display + Quine> {
+struct Test<T: Display> {
     value: T,
 }
 
 fn main() {
     let bad: Test<BadInner> = Test { value: BadInner {} };
-    //bad.ctor_tokens(); // Should not compile
+    bad.ctor_tokens();
 }

@@ -73,6 +73,7 @@ mod test {
     mod custom_module {
         use super::*;
 
+        #[allow(dead_code)]
         #[derive(Quine)]
         #[path_prefix(some_module)]
         pub struct Custom {
@@ -310,7 +311,7 @@ mod test {
     #[test]
     fn test_struct_with_generic() {
         #[derive(Quine)]
-        struct Test<T: Display + Quine> {
+        struct Test<T: Display> {
             value: T,
         }
 
@@ -330,17 +331,16 @@ mod test {
     #[test]
     fn test_enum_with_generic() {
         #[derive(Quine)]
-        enum TestEnum<T: Quine> {
+        enum TestEnum<T> {
             A(T),
-            B,
         }
 
-        let good = TestEnum::A(String::from("Hello World"));
+        let a = TestEnum::A(String::from("Hello World"));
         assert_ts_eq(
-            &good.ctor_tokens(),
+            &a.ctor_tokens(),
             &quote! {
                 polyquine::quine::test::TestEnum::A(String::from("Hello World"))
             },
-        )
+        );
     }
 }

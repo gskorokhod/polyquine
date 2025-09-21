@@ -1,43 +1,21 @@
-error[E0277]: the trait bound `BadInner: Quine` is not satisfied
-  --> tests/ui/fail/bad_inner_struct.rs:19:14
+error[E0599]: the method `ctor_tokens` exists for struct `Test<BadInner>`, but its trait bounds were not satisfied
+  --> tests/ui/fail/bad_inner_struct.rs:20:9
    |
-19 |     let bad: Test<BadInner> = Test { value: BadInner {} };
-   |              ^^^^^^^^^^^^^^ the trait `Quine` is not implemented for `BadInner`
+5  | struct BadInner {}
+   | --------------- doesn't satisfy `BadInner: Quine`
+...
+14 | struct Test<T: Display> {
+   | ----------------------- method `ctor_tokens` not found for this struct because it doesn't satisfy `Test<BadInner>: Quine`
+...
+20 |     bad.ctor_tokens();
+   |         ^^^^^^^^^^^ method cannot be called on `Test<BadInner>` due to unsatisfied trait bounds
    |
-   = help: the following other types implement trait `Quine`:
-             &T
-             &str
-             (A, B, C, D, E, F, G, H, I, J, K)
-             (B, C, D, E, F, G, H, I, J, K)
-             (C, D, E, F, G, H, I, J, K)
-             (D, E, F, G, H, I, J, K)
-             (E, F, G, H, I, J, K)
-             (F, G, H, I, J, K)
-           and $N others
-note: required by a bound in `Test`
-  --> tests/ui/fail/bad_inner_struct.rs:14:26
+   = note: trait bound `BadInner: Quine` was not satisfied
+note: the trait `Quine` must be implemented
+  --> src/quine.rs
    |
-14 | struct Test<T: Display + Quine> {
-   |                          ^^^^^ required by this bound in `Test`
-
-error[E0277]: the trait bound `BadInner: Quine` is not satisfied
-  --> tests/ui/fail/bad_inner_struct.rs:19:45
-   |
-19 |     let bad: Test<BadInner> = Test { value: BadInner {} };
-   |                                             ^^^^^^^^^^^ the trait `Quine` is not implemented for `BadInner`
-   |
-   = help: the following other types implement trait `Quine`:
-             &T
-             &str
-             (A, B, C, D, E, F, G, H, I, J, K)
-             (B, C, D, E, F, G, H, I, J, K)
-             (C, D, E, F, G, H, I, J, K)
-             (D, E, F, G, H, I, J, K)
-             (E, F, G, H, I, J, K)
-             (F, G, H, I, J, K)
-           and $N others
-note: required by a bound in `Test`
-  --> tests/ui/fail/bad_inner_struct.rs:14:26
-   |
-14 | struct Test<T: Display + Quine> {
-   |                          ^^^^^ required by this bound in `Test`
+   | pub trait Quine {
+   | ^^^^^^^^^^^^^^^
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following trait defines an item `ctor_tokens`, perhaps you need to implement it:
+           candidate #1: `Quine`

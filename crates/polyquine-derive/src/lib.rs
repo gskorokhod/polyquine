@@ -1,7 +1,6 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Punct, Spacing, TokenStream as TokenStream2};
-use quote::{ToTokens, TokenStreamExt, quote};
-use syn::parse::Parse;
+use quote::{TokenStreamExt, quote};
 use syn::{Data, DeriveInput, Fields, Ident, Index, Path, WherePredicate, spanned::Spanned};
 
 fn hash_ident(ident: &Ident) -> TokenStream2 {
@@ -30,8 +29,51 @@ fn build_path_setup(ident: &Ident, module_prefix: Option<&Path>) -> TokenStream2
 #[proc_macro_derive(Quine, attributes(path_prefix))]
 pub fn derive_quine(input: TokenStream) -> TokenStream {
     let input: DeriveInput = syn::parse2(input.into()).unwrap();
-    let generics = input.generics;
+    let mut generics = input.generics;
     let ident = input.ident;
+
+    // When deriving for types with generics, we add an extra bound `T: ... + Quine`.
+    // For example, given:
+    // ```ignore
+    // struct MyStruct<T: SomeTrait> {
+    //     field: T,
+    // }
+    // ```
+    // We want to generate:
+    // ```ignore
+    // impl<T: SomeTrait + Quine> Quine for MyStruct<T> {
+    //     ...
+    // }
+    // ```
+    // To do that, we either modify the existing where clause or create a new one.
+    let gen_params = generics.params.iter().collect::<Vec<_>>();
+    if !gen_params.is_empty() {
+        if let Some(a_wc) = &generics.where_clause {
+            let mut wc = a_wc.clone();
+            for p in &mut wc.predicates {
+                if let WherePredicate::Type(pt) = p {
+                    let tb: syn::TraitBound = syn::parse_str("Quine").unwrap();
+                    (&mut pt.bounds).push(syn::TypeParamBound::Trait(tb));
+                }
+            }
+            generics.where_clause = Some(wc);
+        } else {
+            let mut bounds: Vec<syn::TypeParam> = Vec::new();
+            for p in &gen_params {
+                if let syn::GenericParam::Type(a_tp) = p {
+                    let mut tp = a_tp.clone();
+                    let tb = syn::parse_str("Quine").unwrap();
+                    (&mut tp.bounds).push(syn::TypeParamBound::Trait(tb));
+                    bounds.push(tp);
+                }
+            }
+            let where_toks = quote! {
+                where #(#bounds),*
+            };
+            let wc = syn::parse2(where_toks).unwrap();
+            generics.where_clause = Some(wc);
+        }
+    }
 
     let mut module_prefix: Option<Path> = None;
     for attr in &input.attrs {

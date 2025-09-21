@@ -51,6 +51,7 @@ fn ui() {
         use super::*;
         fn nope() {
             let s = #tokens;
+            assert_eq!(s.value, "Hello".to_string());
         }
     };
 
