@@ -49,6 +49,27 @@ assert_ts_eq(
 );
 ```
 
+# Contributing
+
+Contributions are always welcome!
+
+- If you need `Quine` to work with a specific type from `std` or a third-party crate, 
+  or have any other feature suggestions, open an issue tagged "feature request".
+- If you encounter any bugs / unexpected behaviour, open an issue.
+  Please include the error message and relevant code snippets.
+- Pull requests are very much appreciated! I will do my best to review them ASAP.
+  When submitting a patch, please:
+  - Make sure that the linter is happy and all tests pass:
+    ```
+    cargo fmt
+    cargo clippy --workspace --fix
+    cargo test --workspace
+    ```
+  - Include a short message explaining the changes and reasoning behind them
+
+See the issues for planned feature tracking and known bugs
+  
+
 # Notes
 
 - Version `0.0.2` is a complete rewrite.
@@ -74,11 +95,6 @@ This is intended for cases where you need to construct a value and do some non-t
 For example, when you are parsing a DSL at compile time and outputting the constructed (and possibly simplified / transformed) AST as the result of your macro call.
 
 See [this PR](https://github.com/conjure-cp/conjure-oxide/pull/710) as proof that this use case is not completely made up.
-
-# TODO
-
-- More testing
-- Skipping or overriding implementation for fields.
 
 # Production readiness
 
