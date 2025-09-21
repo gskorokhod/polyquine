@@ -1,0 +1,21 @@
+error[E0599]: the method `ctor_tokens` exists for enum `TestEnum<BadInner>`, but its trait bounds were not satisfied
+  --> tests/ui/fail/bad_inner_enum.rs:17:9
+   |
+4  | struct BadInner {}
+   | --------------- doesn't satisfy `BadInner: Quine`
+...
+7  | enum TestEnum<T> {
+   | ---------------- method `ctor_tokens` not found for this enum because it doesn't satisfy `TestEnum<BadInner>: Quine`
+...
+17 |     bad.ctor_tokens();
+   |         ^^^^^^^^^^^ method cannot be called on `TestEnum<BadInner>` due to unsatisfied trait bounds
+   |
+   = note: trait bound `BadInner: Quine` was not satisfied
+note: the trait `Quine` must be implemented
+  --> src/quine.rs
+   |
+   | pub trait Quine {
+   | ^^^^^^^^^^^^^^^
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following trait defines an item `ctor_tokens`, perhaps you need to implement it:
+           candidate #1: `Quine`

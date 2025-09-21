@@ -1,0 +1,21 @@
+error[E0599]: the method `ctor_tokens` exists for struct `Test<BadInner>`, but its trait bounds were not satisfied
+  --> tests/ui/fail/bad_inner_struct.rs:20:9
+   |
+5  | struct BadInner {}
+   | --------------- doesn't satisfy `BadInner: Quine`
+...
+14 | struct Test<T: Display> {
+   | ----------------------- method `ctor_tokens` not found for this struct because it doesn't satisfy `Test<BadInner>: Quine`
+...
+20 |     bad.ctor_tokens();
+   |         ^^^^^^^^^^^ method cannot be called on `Test<BadInner>` due to unsatisfied trait bounds
+   |
+   = note: trait bound `BadInner: Quine` was not satisfied
+note: the trait `Quine` must be implemented
+  --> src/quine.rs
+   |
+   | pub trait Quine {
+   | ^^^^^^^^^^^^^^^
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following trait defines an item `ctor_tokens`, perhaps you need to implement it:
+           candidate #1: `Quine`

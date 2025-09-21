@@ -70,6 +70,17 @@ mod test {
     #[allow(unused)]
     use std::fmt::Formatter;
 
+    mod custom_module {
+        use super::*;
+
+        #[allow(dead_code)]
+        #[derive(Quine)]
+        #[path_prefix(some_module)]
+        pub struct Custom {
+            pub value: i32,
+        }
+    }
+
     #[allow(unused)]
     fn assert_ts_eq(left: &TokenStream, right: &TokenStream) {
         assert_eq!(left.to_string(), right.to_string());
@@ -109,6 +120,15 @@ mod test {
     }
 
     #[test]
+    fn test_custom_module_prefix() {
+        let value = custom_module::Custom { value: 42i32 };
+        assert_ts_eq(
+            &value.ctor_tokens(),
+            &quote! {some_module::Custom { value: 42i32 }},
+        );
+    }
+
+    #[test]
     fn test_struct() {
         #[derive(Quine)]
         struct TestStruct {
@@ -119,7 +139,7 @@ mod test {
         let test_struct = TestStruct { a: 1i32, b: true };
         assert_ts_eq(
             &test_struct.ctor_tokens(),
-            &quote! {TestStruct { a: 1i32, b: true }},
+            &quote! {polyquine::quine::test::TestStruct { a: 1i32, b: true }},
         );
     }
 
@@ -131,7 +151,7 @@ mod test {
         let test_tuple_struct = TestTupleStruct(1i32, true);
         assert_ts_eq(
             &test_tuple_struct.ctor_tokens(),
-            &quote! {TestTupleStruct(1i32, true)},
+            &quote! {polyquine::quine::test::TestTupleStruct(1i32, true)},
         );
     }
 
@@ -141,7 +161,10 @@ mod test {
         struct TestUnitStruct;
 
         let test_unit_struct = TestUnitStruct {};
-        assert_ts_eq(&test_unit_struct.ctor_tokens(), &quote! {TestUnitStruct {}});
+        assert_ts_eq(
+            &test_unit_struct.ctor_tokens(),
+            &quote! {polyquine::quine::test::TestUnitStruct {}},
+        );
     }
 
     #[test]
@@ -161,7 +184,7 @@ mod test {
         };
         assert_ts_eq(
             &node.ctor_tokens(),
-            &quote! {Node { value: 1i32, next: Some(Box::new(Node { value: 2i32, next: None })) }},
+            &quote! {polyquine::quine::test::Node { value: 1i32, next: Some(Box::new(polyquine::quine::test::Node { value: 2i32, next: None })) }},
         );
     }
 
@@ -180,11 +203,17 @@ mod test {
             name: String::from("John"),
         };
 
-        assert_ts_eq(&a.ctor_tokens(), &quote! {TestEnum::A});
-        assert_ts_eq(&b.ctor_tokens(), &quote! {TestEnum::B(1i32)});
+        assert_ts_eq(
+            &a.ctor_tokens(),
+            &quote! {polyquine::quine::test::TestEnum::A},
+        );
+        assert_ts_eq(
+            &b.ctor_tokens(),
+            &quote! {polyquine::quine::test::TestEnum::B(1i32)},
+        );
         assert_ts_eq(
             &c.ctor_tokens(),
-            &quote! {TestEnum::C { name: String::from("John") }},
+            &quote! {polyquine::quine::test::TestEnum::C { name: String::from("John") }},
         );
     }
 
@@ -236,29 +265,29 @@ mod test {
         assert_ts_eq(
             &ast.ctor_tokens(),
             &quote! {
-                Ast::Sum(
-                    Box::new(Metadata {
+                polyquine::quine::test::Ast::Sum(
+                    Box::new(polyquine::quine::test::Metadata {
                         src: String::from("1 + (2 * 3)")
                     }),
                     Vec::from([
-                        Ast::Num(
-                            Box::new(Metadata {
+                        polyquine::quine::test::Ast::Num(
+                            Box::new(polyquine::quine::test::Metadata {
                                 src: String::from("1")
                             }),
                             1isize
                         ),
-                        Ast::Mul(
-                            Box::new(Metadata {
+                        polyquine::quine::test::Ast::Mul(
+                            Box::new(polyquine::quine::test::Metadata {
                                 src: String::from("2 * 3")
                             }),
-                            Box::new(Ast::Num(
-                                Box::new(Metadata {
+                            Box::new(polyquine::quine::test::Ast::Num(
+                                Box::new(polyquine::quine::test::Metadata {
                                     src: String::from("2")
                                 }),
                                 2isize
                             )),
-                            Box::new(Ast::Num(
-                                Box::new(Metadata {
+                            Box::new(polyquine::quine::test::Ast::Num(
+                                Box::new(polyquine::quine::test::Metadata {
                                     src: String::from("3")
                                 }),
                                 3isize
@@ -281,21 +310,10 @@ mod test {
 
     #[test]
     fn test_struct_with_generic() {
-        struct BadInner {}
-
-        impl Display for BadInner {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                write!(f, "BadInner")
-            }
-        }
-
         #[derive(Quine)]
         struct Test<T: Display> {
             value: T,
         }
-
-        let bad: Test<BadInner> = Test { value: BadInner {} };
-        //bad.ctor_tokens(); // Should not compile
 
         let good: Test<String> = Test {
             value: String::from("Hello World"),
@@ -303,7 +321,7 @@ mod test {
         assert_ts_eq(
             &good.ctor_tokens(),
             &quote! {
-                Test {
+                polyquine::quine::test::Test {
                     value: String::from("Hello World")
                 }
             },
@@ -312,23 +330,17 @@ mod test {
 
     #[test]
     fn test_enum_with_generic() {
-        struct BadInner {}
-
         #[derive(Quine)]
         enum TestEnum<T> {
             A(T),
-            B,
         }
 
-        let bad = TestEnum::A(BadInner {});
-        // bad.ctor_tokens();
-
-        let good = TestEnum::A(String::from("Hello World"));
+        let a = TestEnum::A(String::from("Hello World"));
         assert_ts_eq(
-            &good.ctor_tokens(),
+            &a.ctor_tokens(),
             &quote! {
-                TestEnum::A(String::from("Hello World"))
+                polyquine::quine::test::TestEnum::A(String::from("Hello World"))
             },
-        )
+        );
     }
 }
