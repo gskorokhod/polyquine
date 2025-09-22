@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Punct, Spacing, TokenStream as TokenStream2};
 use quote::{TokenStreamExt, quote};
-use syn::{Data, DeriveInput, Fields, Ident, Index, Path, WherePredicate, spanned::Spanned};
+use syn::{Data, DeriveInput, Fields, Ident, Index, Path, WherePredicate, spanned::Spanned, WhereClause, Generics};
 
 fn hash_ident(ident: &Ident) -> TokenStream2 {
     let mut hash_field = TokenStream2::new();
@@ -26,29 +26,27 @@ fn build_path_setup(ident: &Ident, module_prefix: Option<&Path>) -> TokenStream2
     }
 }
 
-#[proc_macro_derive(Quine, attributes(path_prefix, polyquine_skip))]
-pub fn derive_quine(input: TokenStream) -> TokenStream {
-    let input: DeriveInput = syn::parse2(input.into()).unwrap();
-    let mut generics = input.generics;
-    let ident = input.ident;
-
-    // When deriving for types with generics, we add an extra bound `T: ... + Quine`.
-    // For example, given:
-    // ```ignore
-    // struct MyStruct<T: SomeTrait> {
-    //     field: T,
-    // }
-    // ```
-    // We want to generate:
-    // ```ignore
-    // impl<T: SomeTrait + Quine> Quine for MyStruct<T> {
-    //     ...
-    // }
-    // ```
-    // To do that, we either modify the existing where clause or create a new one.
+/// When deriving for types with generics, we add an extra bound `T: ... + Quine`.
+/// For example, given:
+/// ```ignore
+/// struct MyStruct<T: SomeTrait> {
+///     field: T,
+/// }
+/// ```
+/// We want to generate:
+/// ```ignore
+/// impl<T: SomeTrait + Quine> Quine for MyStruct<T> {
+///     ...
+/// }
+/// ```
+/// To do that, we either modify the existing where clause or create a new one.
+fn build_where_clause(generics: &Generics) -> Option<WhereClause> {
     let gen_params = generics.params.iter().collect::<Vec<_>>();
-    if !gen_params.is_empty() {
-        if let Some(a_wc) = &generics.where_clause {
+    if gen_params.is_empty() {
+        return None;
+    }
+    match &generics.where_clause {
+        Some(a_wc) => {
             let mut wc = a_wc.clone();
             for p in &mut wc.predicates {
                 if let WherePredicate::Type(pt) = p {
@@ -56,8 +54,9 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
                     (&mut pt.bounds).push(syn::TypeParamBound::Trait(tb));
                 }
             }
-            generics.where_clause = Some(wc);
-        } else {
+            Some(wc)
+        }
+        None => {
             let mut bounds: Vec<syn::TypeParam> = Vec::new();
             for p in &gen_params {
                 if let syn::GenericParam::Type(a_tp) = p {
@@ -71,10 +70,21 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
                 where #(#bounds),*
             };
             let wc = syn::parse2(where_toks).unwrap();
-            generics.where_clause = Some(wc);
+            Some(wc)
         }
     }
+}
 
+#[proc_macro_derive(Quine, attributes(path_prefix, polyquine_skip))]
+pub fn derive_quine(input: TokenStream) -> TokenStream {
+    let input: DeriveInput = syn::parse2(input.into()).unwrap();
+    let mut generics = input.generics;
+    let ident = input.ident;
+
+    // Add "T: ... + Quine" to the where clause for types with generics
+    generics.where_clause = build_where_clause(&generics);
+
+    // Parse the path_prefix attribute, if any
     let mut module_prefix: Option<Path> = None;
     for attr in &input.attrs {
         if attr.path().is_ident("path_prefix") {
@@ -147,6 +157,7 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
             }
         },
         Data::Enum(data) => {
+            // Derive for enums
             let arms = data.variants.iter().map(|v| {
                 let variant_ident = &v.ident;
 
