@@ -343,4 +343,26 @@ mod test {
             },
         );
     }
+
+    #[test]
+    #[should_panic(
+        expected = "Attempted to call ctor_tokens() on skipped enum variant TestEnum::B"
+    )]
+    fn test_skipped_variant() {
+        #[derive(Quine)]
+        enum TestEnum {
+            A,
+            #[polyquine_skip]
+            B,
+        }
+
+        let a = TestEnum::A;
+        assert_ts_eq(
+            &a.ctor_tokens(),
+            &quote! {polyquine::quine::test::TestEnum::A},
+        );
+
+        let b = TestEnum::B;
+        let _ = b.ctor_tokens(); // This should panic
+    }
 }

@@ -26,7 +26,7 @@ fn build_path_setup(ident: &Ident, module_prefix: Option<&Path>) -> TokenStream2
     }
 }
 
-#[proc_macro_derive(Quine, attributes(path_prefix))]
+#[proc_macro_derive(Quine, attributes(path_prefix, polyquine_skip))]
 pub fn derive_quine(input: TokenStream) -> TokenStream {
     let input: DeriveInput = syn::parse2(input.into()).unwrap();
     let mut generics = input.generics;
@@ -149,6 +149,23 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
         Data::Enum(data) => {
             let arms = data.variants.iter().map(|v| {
                 let variant_ident = &v.ident;
+
+                // Skipped enum variants
+                let is_skipped = v.attrs.iter().any(|attr| attr.path().is_ident("polyquine_skip"));
+                if is_skipped {
+                    let skipped_msg = quote! {
+                        {
+                            panic!("Attempted to call ctor_tokens() on skipped enum variant {}::{}",
+                                   stringify!(#ident), stringify!(#variant_ident))
+                        }
+                    };
+                   return match &v.fields {
+                        Fields::Unit => quote! {#ident::#variant_ident => #skipped_msg},
+                        Fields::Unnamed(_) => quote! {#ident::#variant_ident(..) => #skipped_msg},
+                        Fields::Named(_) => quote! {#ident::#variant_ident{..} => #skipped_msg},
+                    };
+                }
+
                 match &v.fields {
                     Fields::Unit => {
                         let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
