@@ -1,7 +1,11 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Punct, Spacing, TokenStream as TokenStream2};
 use quote::{TokenStreamExt, quote};
-use syn::{Data, DeriveInput, Fields, Ident, Index, Path, WherePredicate, spanned::Spanned, WhereClause, Generics};
+use syn::parse::ParseStream;
+use syn::{
+    Data, DeriveInput, Fields, Generics, Ident, Index, Path, WhereClause, WherePredicate,
+    spanned::Spanned,
+};
 
 fn hash_ident(ident: &Ident) -> TokenStream2 {
     let mut hash_field = TokenStream2::new();
@@ -75,7 +79,36 @@ fn build_where_clause(generics: &Generics) -> Option<WhereClause> {
     }
 }
 
-#[proc_macro_derive(Quine, attributes(path_prefix, polyquine_skip))]
+fn parse_custom_arm(variant: &syn::Variant) -> Option<TokenStream2> {
+    for attr in &variant.attrs {
+        if attr.path().is_ident("polyquine_with") {
+            return attr
+                .parse_args_with(|parser: ParseStream| {
+                    // Parse "arm ="
+                    let ident: syn::Ident = parser.parse()?;
+                    if ident != "arm" {
+                        return Err(parser.error("expected 'arm ='"));
+                    }
+
+                    let _: syn::Token![=] = parser.parse()?;
+
+                    // Parse everything after "arm =" as tokens
+                    let mut tokens = TokenStream2::new();
+                    while !parser.is_empty() {
+                        tokens.extend(TokenStream2::from(
+                            parser.parse::<proc_macro2::TokenTree>()?,
+                        ));
+                    }
+
+                    Ok(tokens)
+                })
+                .ok();
+        }
+    }
+    None
+}
+
+#[proc_macro_derive(Quine, attributes(path_prefix, polyquine_skip, polyquine_with))]
 pub fn derive_quine(input: TokenStream) -> TokenStream {
     let input: DeriveInput = syn::parse2(input.into()).unwrap();
     let mut generics = input.generics;
@@ -103,62 +136,63 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
     let path_setup = build_path_setup(&ident, module_prefix.as_ref());
     let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
 
-    let body = match input.data {
-        // Derive for structs
-        Data::Struct(data) => match &data.fields {
-            Fields::Unit => {
-                let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
-                quote! {
-                    #path_setup
-                    ::quote::quote!{#path {}}
+    let body =
+        match input.data {
+            // Derive for structs
+            Data::Struct(data) => match &data.fields {
+                Fields::Unit => {
+                    let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
+                    quote! {
+                        #path_setup
+                        ::quote::quote!{#path {}}
+                    }
                 }
-            }
-            Fields::Unnamed(fields) => {
-                let (decls, exps): (Vec<TokenStream2>, Vec<TokenStream2>) = fields
-                    .unnamed
-                    .iter()
-                    .enumerate()
-                    .map(|(i, f)| {
-                        let idnt = Ident::new(format!("gen_field_{}", i).as_str(), f.span());
-                        let idx = Index::from(i);
-                        let field_let = quote! {
-                            let #idnt = self.#idx.ctor_tokens();
-                        };
-                        (field_let, hash_ident(&idnt))
-                    })
-                    .unzip();
-                let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
-                quote! {
-                    #(#decls)*
-                    #path_setup
-                    ::quote::quote!{#path(#(#exps),*)}
+                Fields::Unnamed(fields) => {
+                    let (decls, exps): (Vec<TokenStream2>, Vec<TokenStream2>) = fields
+                        .unnamed
+                        .iter()
+                        .enumerate()
+                        .map(|(i, f)| {
+                            let idnt = Ident::new(format!("gen_field_{}", i).as_str(), f.span());
+                            let idx = Index::from(i);
+                            let field_let = quote! {
+                                let #idnt = self.#idx.ctor_tokens();
+                            };
+                            (field_let, hash_ident(&idnt))
+                        })
+                        .unzip();
+                    let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
+                    quote! {
+                        #(#decls)*
+                        #path_setup
+                        ::quote::quote!{#path(#(#exps),*)}
+                    }
                 }
-            }
-            Fields::Named(fields) => {
-                let (decls, exps): (Vec<TokenStream2>, Vec<TokenStream2>) = fields
-                    .named
-                    .iter()
-                    .map(|f| {
-                        let ident = f.ident.as_ref().unwrap();
-                        let field_let = quote! {
-                            let #ident = self.#ident.ctor_tokens();
-                        };
-                        let hash_ident = hash_ident(ident);
-                        let field_exp = quote! {#ident: #hash_ident};
-                        (field_let, field_exp)
-                    })
-                    .unzip();
-                let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
-                quote! {
-                    #(#decls)*
-                    #path_setup
-                    ::quote::quote!{#path{#(#exps),*}}
+                Fields::Named(fields) => {
+                    let (decls, exps): (Vec<TokenStream2>, Vec<TokenStream2>) = fields
+                        .named
+                        .iter()
+                        .map(|f| {
+                            let ident = f.ident.as_ref().unwrap();
+                            let field_let = quote! {
+                                let #ident = self.#ident.ctor_tokens();
+                            };
+                            let hash_ident = hash_ident(ident);
+                            let field_exp = quote! {#ident: #hash_ident};
+                            (field_let, field_exp)
+                        })
+                        .unzip();
+                    let path = hash_ident(&Ident::new(&"path", proc_macro2::Span::call_site()));
+                    quote! {
+                        #(#decls)*
+                        #path_setup
+                        ::quote::quote!{#path{#(#exps),*}}
+                    }
                 }
-            }
-        },
-        Data::Enum(data) => {
-            // Derive for enums
-            let arms = data.variants.iter().map(|v| {
+            },
+            Data::Enum(data) => {
+                // Derive for enums
+                let arms = data.variants.iter().map(|v| {
                 let variant_ident = &v.ident;
 
                 // Skipped enum variants
@@ -176,6 +210,11 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
                         Fields::Named(_) => quote! {#ident::#variant_ident{..} => #skipped_msg},
                     };
                 }
+
+                // Custom arm for enum variant
+                if let Some(custom_arm) = parse_custom_arm(v) {
+                    return quote! {#ident::#variant_ident #custom_arm};
+                };
 
                 match &v.fields {
                     Fields::Unit => {
@@ -237,16 +276,16 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
                     }
                 }
             });
-            quote! {
-                match self {
-                    #(#arms),*
+                quote! {
+                    match self {
+                        #(#arms),*
+                    }
                 }
             }
-        }
-        Data::Union(_) => {
-            unimplemented!("Unions are not supported")
-        }
-    };
+            Data::Union(_) => {
+                unimplemented!("Unions are not supported")
+            }
+        };
 
     let ans = quote! {
         impl #impl_gen Quine for #ident #ty_gen #where_clause {

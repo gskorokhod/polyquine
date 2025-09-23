@@ -165,7 +165,7 @@ dependencies = [
 
 [[package]]
 name = "polyquine"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "polyquine-derive",
  "proc-macro2",
@@ -178,7 +178,7 @@ dependencies = [
 
 [[package]]
 name = "polyquine-derive"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "proc-macro2",
  "quote",

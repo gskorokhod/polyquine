@@ -365,4 +365,26 @@ mod test {
         let b = TestEnum::B;
         let _ = b.ctor_tokens(); // This should panic
     }
+
+    #[test]
+    fn test_custom_arm() {
+        #[derive(Quine)]
+        enum TestEnum {
+            A,
+            #[polyquine_with(arm = (val) => {
+                let new_val = val + 1;
+                quote! { TestEnum::B(#new_val) }
+            })]
+            B(i32),
+        }
+
+        let a = TestEnum::A;
+        assert_ts_eq(
+            &a.ctor_tokens(),
+            &quote! {polyquine::quine::test::TestEnum::A},
+        );
+
+        let b = TestEnum::B(42i32);
+        assert_ts_eq(&b.ctor_tokens(), &quote! { TestEnum::B(43i32) });
+    }
 }
