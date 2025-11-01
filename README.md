@@ -49,6 +49,48 @@ assert_ts_eq(
 );
 ```
 
+# Attributes
+
+You can supply a custom implementation for a specific variant only - handy when this variant contains a foreign type that does not implement `Quine`, or when you want some custom logic in its `.ctor_tokens()`.
+This is done using the attribute `#[polyquine_with(arm = (val) => {...})]`.
+
+```rust
+#[derive(Quine)]
+enum TestEnum {
+    A,
+    #[polyquine_with(arm = (val) => {
+        let new_val = val + 1;
+        quote! { TestEnum::B(#new_val) }
+    })]
+    B(i32),
+}
+
+let b = TestEnum::B(42i32);
+assert_ts_eq(&b.ctor_tokens(), &quote! { TestEnum::B(43i32) }); // <- the value got incremented!
+```
+
+You can also skip variants using `#[polyquine_skip]`.
+By doing so, you pinky promise to never call `.ctor_tokens()` on an instance of that variant.
+If you do, it will `panic!()`:
+
+```rust
+#[derive(Quine)]
+enum TestEnum {
+    A,
+    #[polyquine_skip]
+    B,
+}
+
+let a = TestEnum::A;
+assert_ts_eq(
+    &a.ctor_tokens(),
+    &quote! {polyquine::quine::test::TestEnum::A},
+); // All good for A
+
+let b = TestEnum::B;
+let _ = b.ctor_tokens(); // <- This should panic
+```
+
 # Contributing
 
 Contributions are always welcome!
