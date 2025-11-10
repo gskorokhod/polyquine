@@ -387,4 +387,33 @@ mod test {
         let b = TestEnum::B(42i32);
         assert_ts_eq(&b.ctor_tokens(), &quote! { TestEnum::B(43i32) });
     }
+
+    #[test]
+    fn test_generic_type_struct() {
+        type Int = i32;
+
+        #[derive(Quine)]
+        struct Inner<T> {
+            pub value: T,
+        }
+
+        #[derive(Quine)]
+        struct Outer<T = Int> {
+            inner: Inner<T>,
+        }
+
+        let a = Outer {
+            inner: Inner { value: 1i32 },
+        };
+        assert_ts_eq(
+            &a.ctor_tokens(),
+            &quote! {
+                polyquine::quine::test::Outer {
+                    inner: polyquine::quine::test::Inner {
+                        value: 1i32
+                    }
+                }
+            },
+        );
+    }
 }

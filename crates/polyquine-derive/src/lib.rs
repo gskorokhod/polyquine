@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Punct, Spacing, TokenStream as TokenStream2};
-use quote::{TokenStreamExt, quote};
+use quote::{TokenStreamExt, quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::{
     Data, DeriveInput, Fields, Generics, Ident, Index, Path, WhereClause, WherePredicate,
@@ -65,6 +65,7 @@ fn build_where_clause(generics: &Generics) -> Option<WhereClause> {
             for p in &gen_params {
                 if let syn::GenericParam::Type(a_tp) = p {
                     let mut tp = a_tp.clone();
+                    tp.default = None;
                     let tb = syn::parse_str("Quine").unwrap();
                     (&mut tp.bounds).push(syn::TypeParamBound::Trait(tb));
                     bounds.push(tp);
@@ -73,7 +74,7 @@ fn build_where_clause(generics: &Generics) -> Option<WhereClause> {
             let where_toks = quote! {
                 where #(#bounds),*
             };
-            let wc = syn::parse2(where_toks).unwrap();
+            let wc = syn::parse2(where_toks.clone()).expect(format!("Could not parse where_toks: `{}`", where_toks).as_str());
             Some(wc)
         }
     }
@@ -110,7 +111,7 @@ fn parse_custom_arm(variant: &syn::Variant) -> Option<TokenStream2> {
 
 #[proc_macro_derive(Quine, attributes(path_prefix, polyquine_skip, polyquine_with))]
 pub fn derive_quine(input: TokenStream) -> TokenStream {
-    let input: DeriveInput = syn::parse2(input.into()).unwrap();
+    let input: DeriveInput = syn::parse2(input.clone().into()).expect(format!("Could not parse macro input: {input}").as_str());
     let mut generics = input.generics;
     let ident = input.ident;
 
@@ -173,7 +174,8 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
                         .named
                         .iter()
                         .map(|f| {
-                            let ident = f.ident.as_ref().unwrap();
+                            let f_toks = f.to_token_stream().to_string();
+                            let ident = f.ident.as_ref().expect(format!("Could not get ident of named struct field {f_toks}").as_str());
                             let field_let = quote! {
                                 let #ident = self.#ident.ctor_tokens();
                             };
@@ -253,7 +255,8 @@ pub fn derive_quine(input: TokenStream) -> TokenStream {
                         let mut decls: Vec<TokenStream2> = Vec::new();
                         let mut exps: Vec<TokenStream2> = Vec::new();
                         for f in fields.named.iter() {
-                            let ident = f.ident.as_ref().unwrap();
+                            let f_toks = f.to_token_stream().to_string();
+                            let ident = f.ident.as_ref().expect(format!("Could not get ident of named enum field {f_toks}").as_str());
                             let exp_ident =
                                 Ident::new(format!("gen_field_{}_exp", ident).as_str(), f.span());
                             let field_let = quote! {
